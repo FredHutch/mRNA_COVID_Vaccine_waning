@@ -1,0 +1,73 @@
+---
+title: "Untitled"
+author: "Mia Moore"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+  pdf_document:
+    keep_tex: true
+bibliography: Waning_Review_Data_References.bib
+csl: vancouver.csl
+---
+
+```{r setup, include=FALSE, eacho = FALSE}
+library(flextable)
+library(data.table)
+library(tidyverse)
+library(ftExtra)
+ Meta_Regression_Data <- readRDS("H:/COVID/COVID_modeling/Waning_Immunity/Waning_Table_5_9_24.rds")#Meta_Analysis_Results/Results_2024-04-11/Meta_Regression_Data.rds")
+```
+
+```{r, echo = FALSE}
+Meta_Regression_Data[IMM == "B",COMPARISON := "Primary series + booster dose (no prior infection)",]
+Meta_Regression_Data[IMM == "V",COMPARISON := "Primary series (no prior infection)",]
+Meta_Regression_Data[IMM == "H" & PSTRAIN == "Omicron", COMPARISON := "Primary series (prior Omicron infection)",]
+Meta_Regression_Data[IMM == "HB" & PSTRAIN == "Omicron", COMPARISON := "Primary series + booster dose\n(prior Omicron infection)",]
+Meta_Regression_Data[IMM == "I" & PSTRAIN == "Omicron", COMPARISON := "Prior Omicron infection",]
+Meta_Regression_Data[IMM == "H" & PSTRAIN == "Pre-Omicron", COMPARISON := "Primary series\n(prior pre-Omicron infection)",]
+Meta_Regression_Data[IMM == "HB" & PSTRAIN == "Pre-Omicron", COMPARISON := "Primary series + booster dose\n(prior pre-Omicron infection)",]
+Meta_Regression_Data[IMM == "I" & PSTRAIN == "Pre-Omicron", COMPARISON := "Prior pre-Omicron infection",]
+
+Meta_Regression_Data[is.na(MAX_TIME) & round(MIN_TIME) == MIN_TIME,
+                     TIME_FRAME:= paste0(MIN_TIME, "+ weeks"),]
+
+Meta_Regression_Data[!is.na(MAX_TIME) & 
+                       (round(MIN_TIME) == MIN_TIME) & (round(MAX_TIME) == MAX_TIME),
+                     TIME_FRAME:= paste(MIN_TIME, " to ", MAX_TIME, "weeks"),]
+
+Meta_Regression_Data[is.na(MAX_TIME) & round(MIN_TIME) != MIN_TIME, 
+                     TIME_FRAME:= paste0(round(7 * MIN_TIME), "+ days"),]
+
+Meta_Regression_Data[!is.na(MAX_TIME) & 
+                       (round(MIN_TIME) != MIN_TIME | round(MAX_TIME) != MAX_TIME),
+                     TIME_FRAME:= paste(round(7 * MIN_TIME), " to ", round(7 * MAX_TIME), "days"),]
+
+```
+```{r, echo = FALSE}
+Display_Data = Meta_Regression_Data[
+  IMM%in% c("V", "I", "H", "B", "HB") &
+  TYPE %in% c("S", "D", "M"),
+  .(OUTPUT = sprintf("%.1f (%.1f - %.1f)", VALUE, LOWER, UPPER),#paste0(VALUE, " (", LOWER, " - ", UPPER, ")"),
+    AGE_GROUP,
+    TIME_FRAME),
+  .(STUDY = sprintf("@%s", STUDY), TYPE, COMPARISON, STRAIN)
+]
+```
+
+# Efficacy estimates
+Yes hell this is my citation @Abu_Raddad_2022_2
+
+```{r, echo=FALSE}
+Display_Data%>%flextable()%>%border_inner_h()%>%border_outer()%>%border_inner_v()%>%fontsize(j = seq(1, 7),size = 8)%>%rotate(j = c(1, 2), rotation = "btlr", part = "header")%>%
+  set_header_labels(
+  STUDY = "Study",
+  TYPE = "Outcome",
+  COMPARISON = "Type of Immunity (vs naive)",
+  STRAIN = "Strain",
+  OUTPUT = "Estimate",
+  AGE_GROUP = "Age range",
+  TIME_FRAME = "Time since\nimmune conferring\nevent")%>%width(width = c(0.5, 0.3, 2, 0.8, 1.25, 0.8, 0.9))%>%colformat_md(j = 1)
+```
+
