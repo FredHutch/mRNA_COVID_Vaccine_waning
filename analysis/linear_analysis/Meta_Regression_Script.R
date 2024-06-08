@@ -1,10 +1,12 @@
 ################################################################################
 ######################Meta Regression Script####################################
 ################################################################################
+source("analysis/linear_analysis/Meta_Regression_Functions.R")
+library(data.table)
 MULTI_LEVEL_FLAG = T
 
-Waning_Table_Reduced = readRDS("Waning_Table_5_24_24.rds")
-output_folder = paste0("Meta_Analysis_Results/Results_", Sys.Date())
+Waning_Table_Reduced = readRDS("data/Waning_Table_5_9_24.rds")
+output_folder = paste0("data/Meta_Analysis_Results/Results_", Sys.Date())
 
 dir.create(output_folder)
 saveRDS(Waning_Table_Reduced, paste0(output_folder, "/Meta_Regression_Data.rds"))
@@ -53,6 +55,10 @@ RFIG_STRAIN_DATA =
                        fit_rma_strain_wrap(.SD, multilevel = MULTI_LEVEL_FLAG),
                        .(TYPE)]
 
+Waning_Table_Reduced[TYPE %in% c("S", "D", "M") &
+                       IMM %in% c("V", "B", "H", "HB") &
+                       !is.na(LOWER) & LOWER!=UPPER,.(M = length(unique(STUDY)),.N),]->Model_1
+
 saveRDS(RFIG_STRAIN_DATA, paste0(output_folder, "/RFIG_STRAIN_DATA.rds"))
 
 
@@ -73,6 +79,10 @@ RFIG_BOOSTER_DATA_mod =
                        fit_rma_booster_wrap(.SD, multilevel = MULTI_LEVEL_FLAG),
                                              .(TYPE, STRAIN)]
 
+Waning_Table_Reduced[TYPE %in% c("S", "D", "M") &
+                       IMM %in% c("V", "B") &
+                       !is.na(LOWER) & LOWER!=UPPER,.(M = length(unique(STUDY)),.N),]->Model_2
+
 saveRDS(RFIG_BOOSTER_DATA_mod, paste0(output_folder, "/RFIG_BOOSTER_DATA_mod.rds"))
 
 
@@ -86,7 +96,9 @@ RFIG_INF_DATA =
                        fit_rma_inf_wrap(.SD, multilevel = MULTI_LEVEL_FLAG),
                        .(TYPE, STRAIN)]
 
-
+Waning_Table_Reduced[TYPE %in% c("S", "D") &
+                       IMM %in% c("I", "V", "H") &
+                       !is.na(LOWER) & LOWER!=UPPER,.(M = length(unique(STUDY)),.N),]->Model_3
 
 Waning_Table_Reduced[TYPE %in% c("D") &
                        IMM %in% c("I", "V") & STRAIN == "Pre-Omicron" &
@@ -117,7 +129,9 @@ RFIG_INF_DATA_pstrain = .tmp[TYPE %in% c("S", "D") & STRAIN == "Omicron" &
                              .(TYPE, STRAIN)]
 
 
-
+Waning_Table_Reduced[TYPE %in% c("S", "D") & STRAIN == "Omicron" &
+                       IMM %in% c("I", "V", "H") &
+                       !is.na(LOWER) & LOWER!=UPPER,.(M = length(unique(STUDY)),.N),]->Model_4
 
 RFIG_INF_DATA_pstrain = merge(RFIG_INF_DATA_pstrain,
                               data.table(
@@ -138,4 +152,12 @@ RFIG_HYBRID_BOOSTED_DATA =
                        .(TYPE, STRAIN)]
 
 
+
+Waning_Table_Reduced[TYPE %in% c("S", "D") & STRAIN == "Omicron" &
+                       IMM %in% c("B", "HB") &
+                       !is.na(LOWER) & LOWER!=UPPER,.(M = length(unique(STUDY)),.N),]->Model_5
+
 saveRDS(RFIG_HYBRID_BOOSTED_DATA, paste0(output_folder, "/RFIG_HYBRID_BOOSTED_DATA.rds"))
+
+saveRDS(rbindlist(list(Model_1, Model_2, Model_3, Model_4, Model_5), idcol = "Model"),
+        paste0(output_folder, "/MODEL_SUMMARY.rds"))

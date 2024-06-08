@@ -1,7 +1,7 @@
 ################################################################################
 ######################Meta Regression Functions#################################
 ################################################################################
-
+library(metafor)
 #Purpose: Defining the meta regression functions used in waning meta-analysis
 
 # Model One: Efficacy ~ TIME * STRAIN ####
@@ -865,7 +865,7 @@ fit_rma_pstrain = function(X, Method, multilevel = F){
   template_a = data.table(
     expand.grid(MIN_TIME = c(2, 30),
                 #STRAIN = c("Omicron", "Pre-Omicron"),
-                IMMP = c("HPost - Omicron", "V", "IPre - Omicron", "IPost - Omicron", "HPre - Omicron")
+                IMMP = c("HPost-Omicron", "V", "IPre-Omicron", "IPost-Omicron", "HPre-Omicron")
     )
   )
   
@@ -873,13 +873,13 @@ fit_rma_pstrain = function(X, Method, multilevel = F){
   prediction.grid_b = cbind(
     MIN_TIME = c(-28, -28, -28, -28, -28),
     `IMMPV` = c(0,0,0,0,0),
-    `IMMPIPre - Omicron` = c(0,0,0,0,0),
-    `IMMPIPost - Omicron` = c(0,0,0,0,0),
-    `IMMPHPre - Omicron` = c(0,0,0,0,0),
+    `IMMPIPre-Omicron` = c(0,0,0,0,0),
+    `IMMPIPost-Omicron` = c(0,0,0,0,0),
+    `IMMPHPre-Omicron` = c(0,0,0,0,0),
     `MIN_TIME:IMMPV` = c(0,-28,0,0,0),
-    `MIN_TIME:IMMPIPre - Omicron` = c(0,0,-28,0,0),
-    `MIN_TIME:IMMPIPost - Omicron` = c(0,0,0,-28,0),
-    `MIN_TIME:IMMPHPre - Omicron` = c(0,0,0,0,-28)
+    `MIN_TIME:IMMPIPre-Omicron` = c(0,0,-28,0,0),
+    `MIN_TIME:IMMPIPost-Omicron` = c(0,0,0,-28,0),
+    `MIN_TIME:IMMPHPre-Omicron` = c(0,0,0,0,-28)
   )
   
   .out2a = as.data.table(predict.rma(out.RMA, newmods = prediction.grid_a))
@@ -889,7 +889,7 @@ fit_rma_pstrain = function(X, Method, multilevel = F){
                       .out2b[,.(pred, se, ci.lb, ci.ub),]), 
                 rbind(template_a, 
                       data.frame(
-                        IMMP = c("HPost - Omicron", "V", "IPre - Omicron", "IPost - Omicron", "HPre - Omicron")), 
+                        IMMP = c("HPost-Omicron", "V", "IPre-Omicron", "IPost-Omicron", "HPre-Omicron")), 
                       fill = T)
   )
   
@@ -899,13 +899,13 @@ fit_rma_pstrain = function(X, Method, multilevel = F){
   effect.grid = cbind(
     MIN_TIME  = c( 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0),
     `IMMPV` = c(-1, -1,  0, -1, -1,  0, -1, -1,  0, -1, -1,  0),
-    `IMMPIPre - Omicron` = c( 1,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0),
-    `IMMPIPost - Omicron` = c( 0,  0,  0,  1,  1,  0,  0,  0,  0,  0,  0,  0),
-    `IMMPHPre - Omicron` = c( 0,  0,  0,  0,  0,  0,  1,  1,  0,  0,  0,  0),
+    `IMMPIPre-Omicron` = c( 1,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0),
+    `IMMPIPost-Omicron` = c( 0,  0,  0,  1,  1,  0,  0,  0,  0,  0,  0,  0),
+    `IMMPHPre-Omicron` = c( 0,  0,  0,  0,  0,  0,  1,  1,  0,  0,  0,  0),
     `MIN_TIME:IMMPV` = c(-2,-30, -1, -2,-30, -1, -2,-30, -1, -2,-30, -1),
-    `MIN_TIME:IMMPIPre - Omicron` = c( 2, 30,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0),
-    `MIN_TIME:IMMPIPost - Omicron` = c( 0,  0,  0,  2, 30,  1,  0,  0,  0,  0,  0,  0),
-    `MIN_TIME:IMMPHPre - Omicron` = c( 0,  0,  0,  0,  0,  0,  2, 30,  1,  0,  0,  0)
+    `MIN_TIME:IMMPIPre-Omicron` = c( 2, 30,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0),
+    `MIN_TIME:IMMPIPost-Omicron` = c( 0,  0,  0,  2, 30,  1,  0,  0,  0,  0,  0,  0),
+    `MIN_TIME:IMMPHPre-Omicron` = c( 0,  0,  0,  0,  0,  0,  2, 30,  1,  0,  0,  0)
   )
   
   
