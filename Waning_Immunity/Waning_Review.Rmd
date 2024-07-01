@@ -1,6 +1,11 @@
 ---
 title: "Durability of COVID-19 vaccine and infection induced immunity: a systematic review and meta-regression analysis"
-author: "Mia Moore, Larissa Anderson, Joshua T. Schiffer, Laura Matrajt, Dobromir Dimitrov"
+author: 
+  - Mia Moore. Fred Hutchison Cancer Research Center, Seattle, WA
+  - Larissa Anderson. Fred Hutchison Cancer Research Center, Seattle, WA
+  - Joshua T. Schiffer. Fred Hutchison Cancer Research Center, Seattle, WA
+  - Laura Matrajt. Fred Hutchison Cancer Research Center, Seattle, WA
+  - Dobromir Dimitrov. Fred Hutchison Cancer Research Center, Seattle, WA
 date: "`r Sys.Date()`"
 output:
   bookdown::word_document2:
@@ -435,7 +440,7 @@ rtable_infection[TYPE == "D", OUTCOME:= "Symptomatic\nDisease"]
 rtable_infection[IMM == "V", IMMUNITY:= "Primary"]
 rtable_infection[IMM == "I", IMMUNITY:= "Natural Imm."]
 rtable_infection[IMM == "H", IMMUNITY:= "Hybrid"]
-rtable_infection[IMM == "I vs V", IMMUNITY:= "Imm. vs Pri."]
+rtable_infection[IMM == "I vs V", IMMUNITY:= "N.I. vs Pri."]
 rtable_infection[IMM == "H vs V", IMMUNITY:= "Hyb. vs Pri."]
 rtable_infection[,IMM:=factor(IMM, levels = c("V", "I", "H", "I vs V", "H vs V")),]
 rtable_infection[,STRAIN:=factor(STRAIN, levels = c("Pre-Omicron", "Omicron")),]
@@ -512,11 +517,11 @@ rtable_infection_mod[TYPE == "D", OUTCOME:= "Symptomatic\nDisease"]
 rtable_infection_mod[IMMP == "V", IMMUNITY:= "Primary"]
 rtable_infection_mod[IMMP %in% c("IPre-Omicron", "IPost-Omicron"), IMMUNITY:= "Natural Imm."]
 rtable_infection_mod[IMMP %in% c("HPre-Omicron", "HPost-Omicron"), IMMUNITY:= "Hybrid"]
-rtable_infection_mod[IMMP %in% c("I (Pre) vs V", "I (Post) vs V"), IMMUNITY:= "Imm. vs Pri."]
+rtable_infection_mod[IMMP %in% c("I (Pre) vs V", "I (Post) vs V"), IMMUNITY:= "N.I. vs Pri."]
 rtable_infection_mod[IMMP %in% c("H (Pre) vs V", "H (Post) vs V"), IMMUNITY:= "Hyb. vs Pri."]
 rtable_infection_mod[IMMP %in% c("H (Pre) vs V", "I (Pre) vs V", "HPre-Omicron", "IPre-Omicron"), PSTRAIN:= "Pre-Omicron"]
 rtable_infection_mod[IMMP %in% c("H (Post) vs V", "I (Post) vs V", "HPost-Omicron", "IPost-Omicron"), PSTRAIN:= "Omicron"]
-rtable_infection_mod[,IMMUNITY:=factor(IMMUNITY, levels = c("Primary", "Natural Imm.", "Hybrid", "Imm. vs Pri.", "Hyb. vs Pri.")),]
+rtable_infection_mod[,IMMUNITY:=factor(IMMUNITY, levels = c("Primary", "Natural Imm.", "Hybrid", "N.I. vs Pri.", "Hyb. vs Pri.")),]
 rtable_infection_mod[,PSTRAIN:=factor(PSTRAIN, levels = c("Pre-Omicron", "Omicron")),]
 rtable_infection_mod[,TYPE:=factor(TYPE, levels = c("S", "D")),]
 rtable_infection_mod_bestfit_only = rtable_infection_mod[BEST_FIT_INF_pstrain, on=.(TYPE, method)]
@@ -549,7 +554,7 @@ Centers for Disease Control and Prevention (NU38OT000297-03)
 # Research in Context
 
 ## Evidence before this study
-We searched google scholar with the key words "waning", "efficacy", "covid", and "systematic review". Previous systematic reviews have found that primary vaccination, booster doses and prior infection provide protection against SARS-CoV-2 infection
+We searched google scholar with the key words "waning", "efficacy", "covid", and "systematic review". Prior systematic reviews have found that primary vaccination, booster doses and prior infection provide protection against SARS-CoV-2 infection
 and COVID-19 disease. They also found that this protection wanes over time, but that
 protection against severe infection is more durable. Finally they found that vaccine-induced immunity was markedly lower against Omicron variants than Pre-Omicron variants.
 
@@ -558,7 +563,7 @@ Our analysis extends those of previous meta-analyses due to the inclusion of stu
 We find that 1) booster doses alone improve the strength but not the durability of immunity to Omicron variants, but that 2) prior infection increased the durability of vaccine-induced and booster-induced immunity over time to Omicron variants.
 
 ## Implications of all available evidence
-Although mRNA-based vaccines provide strong initial protection against pre-Omicron variants, this protection gradually wanes gradually over time and dropped sharply with the emergence of the Omicron strain. The durability of this protection is improved by additional doses and prior infections, although it continues to wane. Therefore, regular boosting can not only mitigate annual COVID-19 waves but also reduce the danger imposed by a new strain with similar escape characteristics to Omicron.
+Although mRNA-based vaccines provided strong initial protection against pre-Omicron variants, this protection gradually waned over time and dropped sharply with the emergence of the Omicron strain. The durability of this protection was improved by additional doses and prior infections, although it continued to wane. Therefore, regular boosting can not only mitigate annual COVID-19 waves but also reduce the danger imposed by a new strain with similar escape characteristics to Omicron.
 
 # Main Text
 
@@ -698,7 +703,7 @@ We found a consensus in the literature that vaccine efficacy against infection, 
 Vaccine protection against severe outcomes ($E_M$, Figure \@ref(fig:Strain-Figure)C) was both more durable over time and robust to the immune evasion of omicron. At two weeks post vaccination $E_M$ was `r rtable_strain_best_only[TYPE == "M" & STRAIN == "Pre-Omicron"]$print.value.2` against pre-Omicron variants and `r rtable_strain_best_only[TYPE == "M" & STRAIN == "Omicron"]$print.value.2` against Omicron variants. After 30 weeks, $E_M$ decreased to `r rtable_strain_best_only[TYPE == "M" & STRAIN == "Pre-Omicron"]$print.value.30` and `r rtable_strain_best_only[TYPE == "M" & STRAIN == "Omicron"]$print.value.3` against pre-Omicron and Omicron variants, respectively.
 
 
-```{r Strain-Figure, fig.width = 12, fig.height = 9, fig.cap = "Protection against infection, symptomatic disease, and severe disease by infecting strain and time since most recent vaccination relative to an immune-naive population.", dev = "ragg_png", dpi = 300}
+```{r Strain-Figure, fig.width = 14, fig.height = 9, fig.cap = "Protection against infection, symptomatic disease, and severe disease by infecting strain and time since most recent vaccination relative to an immune-naive population. Size of each dot is proportional to weighting in the analysis.", dev = "ragg_png", dpi = 300}
 #library(viridis)
 
 fig_one_function = function(x){
@@ -722,7 +727,19 @@ fig_one_function = function(x){
 
 RFIG_STRAIN_list = lapply(c("S", "D", "M"),fig_one_function)
 
-grid.arrange(RFIG_STRAIN_list[[1]] + labs(title = expression("Infection"~(E[S])))
+# grid.arrange(RFIG_STRAIN_list[[1]] + labs(title = expression("Infection"~(E[S])))
+#              +annotate("label", x = 0, y = 107, size = 6, label = "A"),
+#              arrangeGrob( 
+#                RFIG_STRAIN_list[[2]] + theme(legend.position = "none") + 
+#                  labs(title = expression("Symptomatic Disease"~(E[D])))+
+#                  annotate("label", x = 0, y = 107, size = 6, label = "B"), 
+#                RFIG_STRAIN_list[[3]] + theme(legend.position = "none") + 
+#                  labs(title = expression("Severe Disease"~(E[M])))+
+#                  annotate("label", x = 0, y = 107, size = 6, label = "C"), 
+#                ncol=2), 
+#              nrow = 2)
+
+ggsave("Figures/Fig_2.svg",plot =grid.arrange(RFIG_STRAIN_list[[1]] + labs(title = expression("Infection"~(E[S])))
              +annotate("label", x = 0, y = 107, size = 6, label = "A"),
              arrangeGrob( 
                RFIG_STRAIN_list[[2]] + theme(legend.position = "none") + 
@@ -732,9 +749,7 @@ grid.arrange(RFIG_STRAIN_list[[1]] + labs(title = expression("Infection"~(E[S]))
                  labs(title = expression("Severe Disease"~(E[M])))+
                  annotate("label", x = 0, y = 107, size = 6, label = "C"), 
                ncol=2), 
-             nrow = 2)
-
-ggsave("Figures/Fig_2.svg", dev = "svg")
+             nrow = 2) , dev = "svg")
 ```
 
 \newpage
@@ -761,7 +776,7 @@ For each outcome, protection was greater following booster doses than primary va
 
 
 
-```{r Booster-Figure, echo=FALSE, fig.width = 12, fig.height = 7,fig.cap = "Protection against infection, symptomatic disease, and severe disease by booster status and time since most recent vaccination relative to an immune-naive population. Top and bottom rows show protection against pre-Omicron and Omicron variants, respectively.", dev = "ragg_png", dpi = 300}
+```{r Booster-Figure, echo=FALSE, fig.width = 12, fig.height = 7,fig.cap = "Protection against infection, symptomatic disease, and severe disease by booster status and time since most recent vaccination relative to an immune-naive population. Top and bottom rows show protection against pre-Omicron and Omicron variants, respectively. Size of each dot is proportional to weighting in the analysis.", dev = "ragg_png", dpi = 300}
 
 dat_text = data.table(
     text = LETTERS[1:6],
@@ -850,7 +865,7 @@ Natural immunity was also more durable following the strain replacement by Omicr
 Vaccine-induced immunity was more durable among those with prior infection (i.e among those with hybrid immunity) compared to those with no history of infection. $E_S$ against pre-Omicron variants was `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Pre-Omicron" & IMM == "H"]$print.value.2` at two weeks and remained at `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Pre-Omicron" & IMM == "H"]$print.value.30` at thirty weeks, significantly greater than in those with no prior infection. $E_S$ against Omicron variants was also higher in those with hybrid immunity than among those with no prior infection at both two weeks, `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Omicron" & IMM == "H"]$print.value.2` , and thirty weeks, `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Omicron" & IMM == "H"]$print.value.30`.
 
 
-```{r Infection-Figure, fig.width = 12, fig.height = 6, fig.cap = "Protection against infection and symptomatic disease by immune status and time since most recent immune conferring event relative to an immune-naive population. For individuals who received primary vaccination with prior infection time since immune conferring event refers to time since vaccination.", dev = "ragg_png", dpi = 300}
+```{r Infection-Figure, fig.width = 12, fig.height = 6, fig.cap = "Protection against infection and symptomatic disease by immune status and time since most recent immune conferring event relative to an immune-naive population. For individuals who received primary vaccination with prior infection time since immune conferring event refers to time since vaccination. Size of each dot is proportional to weighting in the analysis.", dev = "ragg_png", dpi = 300}
 dat_text = data.table(
     text = LETTERS[1:4],
     TYPE2 = factor(rep(c("Infection~(E[S])",
@@ -904,7 +919,7 @@ ggsave("Figures/Fig_4.svg", dev = "svg")
 \newpage
 ```{r Infection-Table}
 
-caption.infection = "Unadjusted estimates of immune efficacy by immune type at two and thirty weeks since most recent immune conferring event and the change over that time frame with 95% confidence intervals. Primary = Primary series only, Natural Imm. = Prior infection onlu, Hybrid = Prior Infection followed by Primary series. Analysis was stratified by infecting strain and clinical outcome. Significance of the impact of strain replacement and of time since vaccination was evaluated with a two-sided t-test. Listed p-values indicate the significance of the strain replacement. Significance of the change over time is indicated by *(p<.05), **(p<.01), and ***(p<.001)."
+caption.infection = "Unadjusted estimates of immune efficacy by immune type at two and thirty weeks since most recent immune conferring event and the change over that time frame with 95% confidence intervals. Primary = Primary series only, Natural Imm. = Prior infection onlu, Hybrid = Prior Infection followed by Primary series. Analysis was stratified by infecting strain and clinical outcome. Significance of the impact of strain replacement and of time since vaccination was evaluated with a two-sided t-test. Listed p-values indicate the significance of the strain replacement. Significance of the change over time is indicated by *(p<.05), **(p<.01), and ***(p<.001). Natural Imm. and N.I. refer to infection-induced immunity, Pri. refers to primary vaccine-induced immunity, Hyb. refers to hybrid immunity."
 
 
 flextable(rtable_infection_bestfit_only, col_keys = c("OUTCOME","STRAIN", "IMMUNITY", "print.value.2", "print.value.30", "print.value.sl"))%>%merge_v(j=c(2, 7,8))%>%set_header_labels(values = c("Outcome", "Infecting Strain", "Immunity", "Initial (Week 2)", "Waned (Week 30)", "Change"))%>%autofit()%>%hline(i = c(5, 10, 13, 18))%>%set_caption(caption.infection)%>%fix_border_issues()%>%fit_to_width(7.5)
@@ -912,14 +927,14 @@ flextable(rtable_infection_bestfit_only, col_keys = c("OUTCOME","STRAIN", "IMMUN
 
 The strength and durability of natural and hybrid immunity depended on the variant of the prior infection as well as time since most recent immune conferring event (Figure \@ref(fig:Infection-Figure-pstrain) and Table
 \@ref(tab:Infection-Table-mod)). $E_S$ against Omicron variants were similar two weeks following either a "Pre - Omicron" infection or primary vaccination
-,`r rtable_infection_mod_bestfit_only[TYPE == "S" & IMMP == "IPre - Omicron"]$print.value.2` vs `r rtable_infection_mod_bestfit_only[TYPE == "S" & IMMP == "V"]$print.value.2`; though natural immunity was greater after thirty weeks,`r rtable_infection_mod_bestfit_only[TYPE == "S" & IMMP == "IPre - Omicron"]$print.value.30` vs `r rtable_infection_mod_bestfit_only[TYPE == "S" & IMMP == "V"]$print.value.30`. Hybrid immunity provided the most protection at both time points (Figure \@ref(fig:Infection-Figure-pstrain) top left). A similar trend was observed in $E_D$: natural immunity from a pre-Omicron variant provided similar protection against Omicron variants as primary vaccination at two weeks,
+,`r rtable_infection_mod_bestfit_only[TYPE == "S" & IMMP == "IPre - Omicron"]$print.value.2` vs `r rtable_infection_mod_bestfit_only[TYPE == "S" & IMMP == "V"]$print.value.2`; though natural immunity was greater after thirty weeks,`r rtable_infection_mod_bestfit_only[TYPE == "S" & IMMP == "IPre - Omicron"]$print.value.30` vs `r rtable_infection_mod_bestfit_only[TYPE == "S" & IMMP == "V"]$print.value.30`. Hybrid immunity provided the most protection at both time points (Figure \@ref(fig:Infection-Figure-pstrain) A). A similar trend was observed in $E_D$: natural immunity from a pre-Omicron variant provided similar protection against Omicron variants as primary vaccination at two weeks,
 `r rtable_infection_mod_bestfit_only[TYPE == "D" & IMMP == "IPre - Omicron"]$print.value.2` vs `r rtable_infection_mod_bestfit_only[TYPE == "D" & IMMP == "V"]$print.value.2`,
-and this protection proved to be more robust at thirty weeks,`r rtable_infection_mod[TYPE == "D" & IMMP == "IPre - Omicron"]$print.value.30` vs `r rtable_infection_mod_bestfit_only[TYPE == "D" & IMMP == "V"]$print.value.30`. Prior infection with Omicron provided robust protection against subsequent reinfection with Omicron,`r rtable_infection_mod_bestfit_only[TYPE == "S" & IMMP == "IPost - Omicron"]$print.value.2`, and symptomatic disease,`r rtable_infection_mod_bestfit_only[TYPE == "D" & IMMP == "IPost - Omicron"]$print.value.2`, significantly greater than that conferred by primary vaccination  (Figure \@ref(fig:Infection-Figure-pstrain) bottom row).
+and this protection proved to be more robust at thirty weeks,`r rtable_infection_mod[TYPE == "D" & IMMP == "IPre - Omicron"]$print.value.30` vs `r rtable_infection_mod_bestfit_only[TYPE == "D" & IMMP == "V"]$print.value.30`. Prior infection with Omicron provided robust protection against subsequent reinfection with Omicron,`r rtable_infection_mod_bestfit_only[TYPE == "S" & IMMP == "IPost - Omicron"]$print.value.2`, and symptomatic disease,`r rtable_infection_mod_bestfit_only[TYPE == "D" & IMMP == "IPost - Omicron"]$print.value.2`, significantly greater than that conferred by primary vaccination  (Figure \@ref(fig:Infection-Figure-pstrain) C-D).
 
 
 
 
-```{r Infection-Figure-pstrain, fig.height = 6, fig.width = 12, fig.cap = "Protection against any Omicron infection and symptomatic disease by type of prior infection and time since most recent immune conferring event relative to an immune-naive population. For individuals who received primary vaccination with prior infection time since immune conferring event refers to time since vaccination.", dev = "ragg_png", dpi = 300}
+```{r Infection-Figure-pstrain, fig.height = 6, fig.width = 12, fig.cap = "Protection against any Omicron infection and symptomatic disease by type of prior infection and time since most recent immune conferring event relative to an immune-naive population. For individuals who received primary vaccination with prior infection time since immune conferring event refers to time since vaccination. Size of each dot is proportional to weighting in the analysis.", dev = "ragg_png", dpi = 300}
 dat_text = data.table(
     text = LETTERS[1:4],
     TYPE2 = factor(rep(c("Infection~(E[S])",
@@ -977,7 +992,7 @@ ggsave("Figures/Fig_5.svg", dev = "svg")
 
 ```{r Infection-Table-mod}
 
-caption.pstrain = "Unadjusted estimates of immune efficacy from by immune type at two and thirty weeks since most recent dose and the change over that time frame with 95% confidence intervals. Analysis was stratified by the variant of the prior infection. Significance of the impact of strain replacement and of time since vaccination was evaluated with a two-sided t-test. Listed p-values indicate the significance of the strain replacement. Significance of the change over time is indicated by *(p<.05), **(p<.01), and ***(p<.001)."
+caption.pstrain = "Unadjusted estimates of immune efficacy from by immune type at two and thirty weeks since most recent dose and the change over that time frame with 95% confidence intervals. Analysis was stratified by the variant of the prior infection. Significance of the impact of strain replacement and of time since vaccination was evaluated with a two-sided t-test. Listed p-values indicate the significance of the strain replacement. Significance of the change over time is indicated by *(p<.05), **(p<.01), and ***(p<.001). Natural Imm. and N.I. refer to infection-induced immunity, Pri. refers to primary vaccine-induced immunity, Hyb. refers to hybrid immunity."
 
 
 flextable(rtable_infection_mod_bestfit_only, col_keys = c("OUTCOME", "PSTRAIN", "IMMUNITY", "print.value.2", "print.value.30", "print.value.sl"))%>%merge_v(j=c(7,9))%>%set_header_labels(values = c("Outcome", "Prior Infection", "Immunity", "Initial (Week 2)", "Waned (Week 30)", "Change"))%>%autofit()%>%hline(i = c(1,5, 9, 10, 14))%>%set_caption(caption.pstrain)%>%fix_border_issues()%>%fit_to_width(7.5)
@@ -986,7 +1001,7 @@ flextable(rtable_infection_mod_bestfit_only, col_keys = c("OUTCOME", "PSTRAIN", 
 Finally, we compared $E_S$ and $E_D$ following booster doses in individuals with
 and without prior infection (Figure \@ref(fig:Hybrid-Boosted-Figure) and Table \@ref(tab:Hybrid-Boosted-Table)). At two weeks following a booster dose, individuals with a prior infection had significantly greater $E_S$, `r rtable_infection_hboosted_bestfit[TYPE == "S" & Infected == "TRUE"]$print.value.2` vs `r rtable_infection_hboosted_bestfit[TYPE == "S" & Infected == "FALSE"]$print.value.2` and $E_D$, `r rtable_infection_hboosted_bestfit[TYPE == "D" & Infected == "TRUE"]$print.value.2` vs `r rtable_infection_hboosted_bestfit[TYPE == "D" & Infected == "FALSE"]$print.value.2` than those with no prior infection. Differences at 30 weeks were not significant.
 
-```{r Hybrid-Boosted-Figure, fig.width = 12, fig.height = 6, fig.cap = "Protection from 3+ doses of mRNA vaccine against infection and symptomatic disease by prior infection and time since most recent immune conferring event relative to an immune-naive population. For individuals who received primary vaccination with prior infection time since immune conferring event refers to time since vaccination.", dev = "ragg_png", dpi = 300}
+```{r Hybrid-Boosted-Figure, fig.width = 12, fig.height = 6, fig.cap = "Protection from 3+ doses of mRNA vaccine against infection and symptomatic disease by prior infection and time since most recent immune conferring event relative to an immune-naive population. For individuals who received primary vaccination with prior infection time since immune conferring event refers to time since vaccination. Size of each dot is proportional to weighting in the analysis.", dev = "ragg_png", dpi = 300}
 dat_text = data.table(
     text = LETTERS[1:2],
     TYPE2 = rep(c("Infection~(E[S])",
@@ -1048,13 +1063,13 @@ flextable(rtable_infection_hboosted_bestfit, col_keys = c("OUTCOME", "DOSE", "pr
 
 
 # Discussion
-As SARS-CoV-2 becomes endemic, precise estimates of the durability and quality of protection are valuable for guiding ongoing vaccination programs, disease surveillance, and other mitigation strategies. In this meta-analysis, we combined data from 123 studies to estimate vaccination-induced and infection-induced protection over time against three outcomes: SARS-2-CoV2 infection, symptomatic COVID-19, and severe COVID-19. We found that 1) all three forms of immunity waned over time, but that protection against severe disease was the most durable, 2) protection against Omicron strains was substantially lower than pre-Omicron strains, 3) booster doses could restore protection against pre-Omicron strains and enhance it against Omicron strains, without improving durability of immunity, 4) prior infection increased the durability of vaccine-induced immunity over time and conferred immunity that was more durable than vaccine-derived, 5) prior infection with a pre-Omicron strain provided similar initial protection as primary vaccination against infection with Omicron strains, but was more durable, and 6) prior infection enhances booster-induced immunity against Omicron strains. These results are consistent with prior meta-analyses, but expand on  them due to 1) the inclusion of studies up to January 1st, 2023, 2) a comprehensive analysis of primary and booster-induced immunity, infection-induced immunity, and hybrid immunity, and 3) an analysis of infection-induced immunity following both pre-Omicron and Omicron variants.[@bobrovitz2023protective; @stein2023past; @wu2023long; @mohammed2023systematic; @feikin2022duration]
+As SARS-CoV-2 becomes endemic, precise estimates of the durability and quality of protection are valuable for guiding ongoing vaccination programs, disease surveillance, and other mitigation strategies. In this meta-analysis, we combined data from 123 studies to estimate vaccination-induced and infection-induced protection over time against three outcomes: SARS-2-CoV2 infection, symptomatic COVID-19, and severe COVID-19. We found that 1) all three forms of immunity waned over time, but that protection against severe disease was the most durable, 2) protection against Omicron strains was substantially lower than pre-Omicron strains, 3) booster doses could restore protection against pre-Omicron strains and enhance it against Omicron strains, without improving durability of immunity, 4) prior infection increased the durability of vaccine-induced immunity over time and conferred immunity that was more durable than vaccine-derived, 5) prior infection with a pre-Omicron strain provided similar initial protection as primary vaccination against infection with Omicron strains, but was more durable, and 6) prior infection enhances booster-induced immunity against Omicron strains. These results are consistent with prior meta-analyses, but expand on  them due to 1) the inclusion of studies up to January 1, 2023, 2) a comprehensive analysis of primary and booster-induced immunity, infection-induced immunity, and hybrid immunity, and 3) an analysis of infection-induced immunity following both pre-Omicron and Omicron variants.[@bobrovitz2023protective; @stein2023past; @wu2023long; @mohammed2023systematic; @feikin2022duration]
 
 Immunological memory consists of both humoral and cellular responses which may be depleted at different time scales.[@pooley2023durability] Given the availability of data, we have focused on waning protection over the first 30 weeks after an immune conferring event, corresponding roughly to the duration of humoral immunity following vaccination. The maintenance of residual immunity at 30 weeks, especially against severe disease, suggests that long-lived memory CD4+ and CD8+ T cell populations likely continue to provide protection, or that antibody responses in relevant respiratory compartments may differ from those measured in blood. Future study will be necessary to quantify the strength and durability of that protection following primary vaccination, booster doses, and infection.
 
 Our results highlight the importance of booster doses for protecting against new variants. Even though hybrid immunity proved to be more durable than the immunity from vaccination alone, protection against infection and symptomatic disease against Omicron variants still waned significantly over the course of 30 weeks, including among those who got infected by an Omicron variant. It is therefore possible that a new variant could escape from the immunity conferred by Omicron infection, unless that immunity is regularly augmented by booster doses.
 
-As more information on COVID-19 becomes available, estimates of the durability of immunity will have to be continuously updated. The present study has several limitations. First, all estimates in the meta-analysis were associated with a range of times since the immune conferring event, but many of these ranges were open-ended with a minimum time but no maximum. Therefore, for all estimates, we took the time since immune conferring event to be the minimum time, making our estimates conservative. Second, all estimates in this analysis were relative to previously uninfected and unvaccinated individuals. This sub-population is not randomized, potentially introducing bias. [@stephenson2023efficacy] Third, heterogeneity of risk within cohorts can lead to an imbalance between groups, potentially contributing to waning immunity. This can occur if there are unmeasured confounding variables such as differences in exposure or susceptibility to severe disease. Fourth, in this study we assume a linear decline of immunity over time, which we expect to be unlikely to hold beyond thirty weeks. Exponential or bi-exponential decay may be a more appropriate model for the decline of immunity over the course of several years.
+As more information on COVID-19 becomes available, estimates of the durability of immunity will have to be continuously updated. The present study has several limitations. First, all estimates in the meta-analysis were associated with a range of times since the immune conferring event, but many of these ranges were open-ended with a minimum time but no maximum. Therefore, for all estimates, we took the time since immune conferring event to be the minimum time, making our estimates conservative. Second, all estimates in this analysis were relative to previously uninfected and unvaccinated individuals. This sub-population is not randomized, potentially introducing bias. [@stephenson2023efficacy] Third, heterogeneity of risk within cohorts can lead to an imbalance between groups, potentially contributing to waning immunity. This can occur if there are unmeasured confounding variables such as differences in exposure or susceptibility to severe disease. Fourth, in this study we assume a linear decline of immunity over time, which we expect to be unlikely to hold beyond thirty weeks. Exponential or bi-exponential decay may be a more appropriate model for the decline of immunity over the course of several years. Finally, due to the time fraom eof this analysis, we do not include efficacy estimates for updated boosters.
 
 A comprehensive understanding of the dynamics of immunity following both vaccination and infection will be critical for future pandemic preparedness.
 The risk posed by emerging SARS-CoV-2 variants will depend on the population-level protection against infection and severe disease and its robustness to strain replacement. Knowing when and how vaccine protection wanes can help public health officials plan for future vaccination and booster campaigns, offer guidance to individuals about how long protection from vaccination can last, and help ensure equitable distrbution of vaccines[@matrajt2021vaccine].

@@ -1,4 +1,4 @@
-output_folder = "Meta_Analysis_Results/Results_2024-04-06/"
+output_folder = "data/Meta_Analysis_Results/Results_2024-06-24/"
 
 
 library(data.table)
@@ -10,7 +10,7 @@ setnames(Non_Linear_Fit, old = c("se", "STRAIN", "IMM"),
 Non_Linear_Fit[is.na(STRAIN_FIT),STRAIN_FIT:="Matched",]
 
 decay_rate = 1/20
-# Filter Parameters Based on Contraints ####
+# Filter Parameters Based on Constraints ####
 
 ## Generate Samples ####
 N_samples = 1000
@@ -21,18 +21,18 @@ sample.parameter =
                  .(IMM_FIT, WANING, MODEL, method, STRAIN_FIT, TYPE)]
 
 
-## Filter out negative values or >100 ####
+## Filter out values >100 ####
 
 #Only check SD (lump ES and ED into single estimate) and EM
 filter_SD_only = sample.parameter[TYPE %in% c("SD", "M"),
-                 mean(SAMPLE<0 | SAMPLE>100) == 0,
+                 mean(SAMPLE>100) == 0,
                  .(MODEL, method, iter, STRAIN_FIT, TYPE)][
                    (V1),
                    .(MODEL, method, iter, STRAIN_FIT, TYPE),]
 
 #Check ES, ED and EM
 filter_S_AND_D = sample.parameter[TYPE %in% c("S", "D", "M"),
-                                  mean(SAMPLE<0 | SAMPLE>100) == 0,
+                                  mean(SAMPLE>100) == 0,
                                   .(MODEL, method, iter, STRAIN_FIT, TYPE)][
                                     (V1),
                                     .(MODEL, method, iter, STRAIN_FIT, TYPE),]
@@ -46,18 +46,26 @@ filter_S_AND_D = sample.parameter[TYPE %in% c("S", "D", "M"),
 check_IMM_full = function(X){
   X[,
     (sum(SAMPLE * (IMM_FIT == "V"))>sum(SAMPLE * (IMM_FIT == "H"))) +
+      (sum(SAMPLE * (IMM_FIT == "V"))>sum(SAMPLE * (IMM_FIT == "B"))) +
       (sum(SAMPLE * (IMM_FIT == "H"))>sum(SAMPLE * (IMM_FIT == "HB"))) * 
+      sum(IMM_FIT == "HB")+
+      (sum(SAMPLE * (IMM_FIT == "B"))>sum(SAMPLE * (IMM_FIT == "HB"))) * 
       sum(IMM_FIT == "HB"),
     .(WANING)][,sum(V1)==0,]
 }
 
 
 
+
+
 check_IMM_red = function(X){
   X[,
     (sum(SAMPLE * (IMM_FIT == "V"))>sum(SAMPLE * (IMM_FIT == "HI"))) +
+      (sum(SAMPLE * (IMM_FIT == "V"))>sum(SAMPLE * (IMM_FIT == "B"))) +
       (sum(SAMPLE * (IMM_FIT == "HI"))>sum(SAMPLE * (IMM_FIT == "HB"))) * 
-      sum(IMM_FIT == "HB"),
+      sum(IMM_FIT == "HB")+
+    (sum(SAMPLE * (IMM_FIT == "B"))>sum(SAMPLE * (IMM_FIT == "HB"))) * 
+      sum(IMM_FIT == "HB"),,
     .(WANING)][,sum(V1)==0,]
 }
 
@@ -342,13 +350,26 @@ LL_summary[
              .(STRAIN_FIT, TYPE)],
   on = .(MODEL, method, STRAIN_FIT, TYPE, TOTAL_BIC_constrained)]->Best_Fits_constrained
 
+## Find best fits from regression alone (no out of sample) ####
+LL_summary[
+  LL_summary[,.(BIC = min(BIC, na.rm = T),
+                method = method[which.min(BIC)], 
+                MODEL = MODEL[which.min(BIC)]),
+             .(STRAIN_FIT, TYPE)],
+  on = .(MODEL, method, STRAIN_FIT, TYPE, BIC)]->Best_Fits_regression
+
 Best_Fits_constrained[,TOTAL_BIC:=TOTAL_BIC_constrained,]
 Best_Fits_unconstrained[,TOTAL_BIC:=TOTAL_BIC_unconstrained,]
+Best_Fits_regression[,TOTAL_BIC:=BIC,]
 
 Best_Fits_unconstrained[,constrained:=FALSE,]
 Best_Fits_constrained[,constrained:=TRUE,]
+Best_Fits_regression[,constrained:=FALSE,]
+Best_Fits_unconstrained[,out_of_sample:=TRUE,]
+Best_Fits_constrained[,out_of_sample:=TRUE,]
+Best_Fits_regression[,out_of_sample:=FALSE,]
 
-Best_Fits = rbind(Best_Fits_constrained, Best_Fits_unconstrained, fill = TRUE)
+Best_Fits = rbind(Best_Fits_constrained, Best_Fits_unconstrained, Best_Fits_regression, fill = TRUE)
 
 ## Compare modeling ES and ED alone vs together ####
 Best_Fits[TYPE!="M",
@@ -371,7 +392,7 @@ Best_Fits[
 Non_Linear_Fit[Best_Fits, on = .(MODEL, method, TYPE, STRAIN_FIT)
                ][OUTPUT == "parameters",.(VALUE, STDERROR, LOWER, UPPER),
                  .(IMM_FIT, WANING_FIT = WANING, TYPE_FIT = TYPE, STRAIN_FIT, 
-                   CONSTRAINED = constrained)]->Non_Linear_Fit_reduced
+                   CONSTRAINED = constrained, USE_NON_STANDARD = out_of_sample)]->Non_Linear_Fit_reduced
 
 saveRDS(Non_Linear_Fit_reduced, file = paste0(output_folder, "/Non_Linear_Fit_reduced.rds"))
 saveRDS(LL_summary, file = paste0(output_folder, "/Fitting_Summary.rds"))
@@ -379,11 +400,22 @@ saveRDS(LL_summary, file = paste0(output_folder, "/Fitting_Summary.rds"))
 check_S_D_M = function(X){
   X[,(SAMPLE[3]>SAMPLE[1]) + #S>D
       (SAMPLE[1]>SAMPLE[2]), #D>M
-    .(IMM, WANING)][,sum(V1)==0,]
+    .(IMM, WANING)][,sum(V1)==0,STRAIN_FIT]
 }
 
 
 check_SD_M = function(X){
   X[,(SAMPLE[4]>SAMPLE[2]), #SD>M
-    .(IMM, STRAIN_FIT, WANING)][,sum(V1)==0,]
+    .(IMM, STRAIN_FIT, WANING)][,sum(V1)==0,STRAIN_FIT]
 }
+
+check_IMM_full_individual = function(X){
+  X[,
+    .(V_greater_than_H = (sum(VALUE * (IMM_FIT == "V"))>sum(VALUE * (IMM_FIT == "H"))),
+      V_greater_than_B = (sum(VALUE * (IMM_FIT == "V"))>sum(VALUE * (IMM_FIT == "B"))),
+      H_greater_than_HB = (sum(VALUE * (IMM_FIT == "H"))>sum(VALUE * (IMM_FIT == "HB"))) * sum(IMM_FIT == "HB"),
+      B_greater_than_HB = (sum(VALUE * (IMM_FIT == "B"))>sum(VALUE * (IMM_FIT == "HB"))) * sum(IMM_FIT == "HB")),
+  ]
+}
+
+Non_Linear_Fit_reduced[,check_IMM_full_individual(.SD),.(WANING_FIT, TYPE_FIT, STRAIN_FIT, CONSTRAINED, USE_NON_STANDARD)]->Problems

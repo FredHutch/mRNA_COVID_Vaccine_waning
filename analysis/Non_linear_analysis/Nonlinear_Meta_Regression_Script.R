@@ -1,11 +1,13 @@
 ################################################################################
 ######################Meta Regression Script####################################
 ################################################################################
+source("analysis/linear_analysis/Meta_Regression_Functions.R")
 MULTI_LEVEL_FLAG = T
+decay_rate = 0.05 #Twenty weeks
 library(data.table)
 library(metafor)
-Waning_Table_Reduced = readRDS("Waning_Table_1_30.rds")
-output_folder = paste0("Meta_Analysis_Results/Results_", Sys.Date())
+Waning_Table_Reduced = readRDS("data/Waning_Table_5_9_24.rds")
+output_folder = paste0("data/Meta_Analysis_Results/Results_", Sys.Date())
 
 dir.create(output_folder)
 saveRDS(Waning_Table_Reduced, file = paste0(output_folder, "/Meta_Regression_Data.rds"))
