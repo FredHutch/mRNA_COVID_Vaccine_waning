@@ -1131,10 +1131,10 @@ fit_rma_nonlinear_error_catch = function(X, Method, multilevel = F,
   finally = print(paste0(Method, ": complete")))
 }
 
-fit_rma_nonlinear = function(X, Method, multilevel = F, decay_rate = 1/20){
+fit_rma_nonlinear = function(X, Method, model = formula(~WANING * IMM), multilevel = F, decay_rate = 1/20){
   out.RMA = rma(VALUE, 
                 sei=STDERROR, 
-                mods = ~WANING * IMM, 
+                mods = model, 
                 data = X[,.(VALUE, STDERROR, IMM, 
                             WANING = 1 - exp(-decay_rate * MIN_TIME))]
   )
@@ -1144,7 +1144,7 @@ fit_rma_nonlinear = function(X, Method, multilevel = F, decay_rate = 1/20){
       #Single Random effect
       out.RMA = rma.mv(VALUE, 
                        V = STDERROR^2, 
-                       mods = ~WANING * IMM, 
+                       mods = model, 
                        data = X[,.(VALUE, STDERROR, IMM, STUDY, effect_id, 
                                    WANING = 1 - exp(-decay_rate * MIN_TIME))], 
                        random = list(~1|STUDY, 
@@ -1156,7 +1156,7 @@ fit_rma_nonlinear = function(X, Method, multilevel = F, decay_rate = 1/20){
       #Auto-correlated random effects following exp(-(time_1 - time_2)/rho)
       out.RMA = rma.mv(VALUE, 
                        V = STDERROR^2, 
-                       mods = ~WANING * IMM, 
+                       mods = model, 
                        struct = "GEN",
                        data = X[,.(VALUE, STDERROR, IMM, STUDY, effect_id, 
                                    WANING = 1 - exp(-decay_rate * MIN_TIME))],
@@ -1168,7 +1168,7 @@ fit_rma_nonlinear = function(X, Method, multilevel = F, decay_rate = 1/20){
     if(Method == "slope-intercept-modulator correlation: study and estimate"){
       out.RMA = rma.mv(VALUE, 
                        V = STDERROR^2, 
-                       mods = ~WANING * IMM, 
+                       mods = model, 
                        struct = "GEN",
                        data = X[,.(VALUE, STDERROR, IMM, STUDY, effect_id, 
                                    WANING = 1 - exp(-decay_rate * MIN_TIME))],
@@ -1181,7 +1181,7 @@ fit_rma_nonlinear = function(X, Method, multilevel = F, decay_rate = 1/20){
       #Single Random effect
       out.RMA = rma.mv(VALUE, 
                        V = STDERROR^2, 
-                       mods = ~WANING * IMM,
+                       mods = model,
                        data = X[,.(VALUE, STDERROR, IMM, STUDY, effect_id, 
                                    WANING = 1 - exp(-decay_rate * MIN_TIME))],
                        random = ~1|STUDY
@@ -1192,7 +1192,7 @@ fit_rma_nonlinear = function(X, Method, multilevel = F, decay_rate = 1/20){
       #Auto-correlated random effects following exp(-(time_1 - time_2)/rho)
       out.RMA = rma.mv(VALUE, 
                        V = STDERROR^2, 
-                       mods = ~WANING * IMM, 
+                       mods = model, 
                        struct = "GEN",
                        data = X[,.(VALUE, STDERROR, IMM, STUDY, effect_id, 
                                    WANING = 1 - exp(-decay_rate * MIN_TIME))],
@@ -1203,7 +1203,7 @@ fit_rma_nonlinear = function(X, Method, multilevel = F, decay_rate = 1/20){
     if(Method == "slope-intercept-modulator correlation: study only"){
       out.RMA = rma.mv(VALUE, 
                        V = STDERROR^2, 
-                       mods = ~WANING * IMM, 
+                       mods = model, 
                        struct = "GEN",
                        data = X[,.(VALUE, STDERROR, IMM, STUDY, effect_id, 
                                    WANING = 1 - exp(-decay_rate * MIN_TIME))],
@@ -1215,7 +1215,7 @@ fit_rma_nonlinear = function(X, Method, multilevel = F, decay_rate = 1/20){
       #Single Random effect
       out.RMA = rma.mv(VALUE, 
                        V = STDERROR^2, 
-                       mods = ~WANING * IMM, 
+                       mods = model, 
                        data = X[,.(VALUE, STDERROR, IMM, STUDY, effect_id, 
                                    WANING = 1 - exp(-decay_rate * MIN_TIME))],
                        random = ~1|effect_id
@@ -1226,7 +1226,7 @@ fit_rma_nonlinear = function(X, Method, multilevel = F, decay_rate = 1/20){
       #Auto-correlated random effects following exp(-(time_1 - time_2)/rho)
       out.RMA = rma.mv(VALUE, 
                        V = STDERROR^2, 
-                       mods = ~WANING * IMM, 
+                       mods = model, 
                        struct = "GEN",
                        data = X[,.(VALUE, STDERROR, IMM, STUDY, effect_id, 
                                    WANING = 1 - exp(-decay_rate * MIN_TIME))],
@@ -1237,7 +1237,7 @@ fit_rma_nonlinear = function(X, Method, multilevel = F, decay_rate = 1/20){
     if(Method == "slope-intercept-modulator correlation: estimate only"){
       out.RMA = rma.mv(VALUE, 
                        V = STDERROR^2, 
-                       mods = ~WANING * IMM, 
+                       mods = model, 
                        struct = "GEN",
                        data = X[,.(VALUE, STDERROR, IMM, STUDY, effect_id, 
                                    WANING = 1 - exp(-decay_rate * MIN_TIME))],
@@ -1254,14 +1254,16 @@ fit_rma_nonlinear = function(X, Method, multilevel = F, decay_rate = 1/20){
     )
   )
   
-  prediction_grid = 
-    model.matrix( ~WANING * IMM, template)[,row.names(out.RMA$b)[-1]]
+  # prediction_grid = 
+  #   model.matrix( model, template)[,row.names(out.RMA$b)[-1]]
+  # 
+  # model_prediction = as.data.table(predict.rma(out.RMA, newmods = prediction_grid))
+  # 
+  # parameter_table = cbind(template, model_prediction[,.(VALUE = pred, se, 
+  #                                                       LOWER = ci.lb, 
+  #                                                       UPPER = ci.ub)])
   
-  model_prediction = as.data.table(predict.rma(out.RMA, newmods = prediction_grid))
-  
-  parameter_table = cbind(template, model_prediction[,.(VALUE = pred, se, 
-                                                        LOWER = ci.lb, 
-                                                        UPPER = ci.ub)])
+  parameter_table = extract_parameters(out.RMA, template, model)
   parameter_table$OUTPUT = "parameters"
   
   fit_summary = data.table(
@@ -1270,4 +1272,15 @@ fit_rma_nonlinear = function(X, Method, multilevel = F, decay_rate = 1/20){
   )
   rbind(parameter_table, fit_summary, fill = T)
   
+}
+
+extract_parameters = function(out.RMA, template, model){
+  prediction_grid = 
+    model.matrix( model, template)[,row.names(out.RMA$b)[-1]]
+  
+  model_prediction = as.data.table(predict.rma(out.RMA, newmods = prediction_grid))
+  
+  cbind(template, model_prediction[,.(VALUE = pred, se, 
+                                                        LOWER = ci.lb, 
+                                                        UPPER = ci.ub)])
 }

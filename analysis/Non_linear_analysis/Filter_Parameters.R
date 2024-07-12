@@ -394,8 +394,6 @@ Non_Linear_Fit[Best_Fits, on = .(MODEL, method, TYPE, STRAIN_FIT)
                  .(IMM_FIT, WANING_FIT = WANING, TYPE_FIT = TYPE, STRAIN_FIT, 
                    CONSTRAINED = constrained, USE_NON_STANDARD = out_of_sample)]->Non_Linear_Fit_reduced
 
-saveRDS(Non_Linear_Fit_reduced, file = paste0(output_folder, "/Non_Linear_Fit_reduced.rds"))
-saveRDS(LL_summary, file = paste0(output_folder, "/Fitting_Summary.rds"))
 
 check_S_D_M = function(X){
   X[,(SAMPLE[3]>SAMPLE[1]) + #S>D
@@ -418,4 +416,55 @@ check_IMM_full_individual = function(X){
   ]
 }
 
+
 Non_Linear_Fit_reduced[,check_IMM_full_individual(.SD),.(WANING_FIT, TYPE_FIT, STRAIN_FIT, CONSTRAINED, USE_NON_STANDARD)]->Problems
+Non_Linear_Fit_reduced
+
+saveRDS(Non_Linear_Fit_reduced, file = paste0(output_folder, "/Non_Linear_Fit_reduced.rds"))
+saveRDS(LL_summary, file = paste0(output_folder, "/Fitting_Summary.rds"))
+
+MAPPING = 
+  data.table(
+    expand.grid(
+      IMM_MODEL = c("V", "I", "H", "B", "HB"),
+      TYPE_MODEL = c("S", "D", "M"),
+      STRAIN_MODEL = c("Pre-Omicron", "Omicron"),
+      CONSTRAINED = c(TRUE, FALSE),
+      WANED_MODEL = c(0, 1)
+      )
+  )
+
+MAPPING[IMM_MODEL == "V", IMM_FIT:="V"]
+MAPPING[IMM_MODEL == "B", IMM_FIT:="B"]
+MAPPING[IMM_MODEL == "I", IMM_FIT:="I"]
+MAPPING[IMM_MODEL == "H", IMM_FIT:="H"]
+MAPPING[IMM_MODEL %in% c("HB", "D"), IMM_FIT:="HB"]
+MAPPING[TYPE_MODEL  == "S", TYPE_FIT := "S"]
+MAPPING[TYPE_MODEL  == "D", TYPE_FIT := "D"]
+MAPPING[TYPE_MODEL  == "M", TYPE_FIT := "M"]
+MAPPING[STRAIN_MODEL  == "Pre-Omicron", STRAIN_FIT := "Matched"]
+MAPPING[STRAIN_MODEL  == "Omicron", STRAIN_FIT := "Omicron"]
+
+#July 3rd start here
+MAPPING[CONSTRAINED == "TRUE" & TYPE_MODEL %in% c("S", "D"), TYPE_FIT == "SD"]
+
+MAPPING[CONSTRAINED == "TRUE" & TYPE_MODEL == "M" & STRAIN_MODEL == "Pre-Omicron" &
+          IMM_MODEL %in% c("H", "B") & WANED_MODEL == 0, 
+        IMM_FIT:="V"]
+
+
+MAPPING[CONSTRAINED == "TRUE" & TYPE_FIT == "SD" & STRAIN_MODEL == "Pre-Omicron" &
+          IMM_MODEL %in% c("H") & WANED_MODEL == 0, 
+        IMM_FIT:="V"]
+
+
+MAPPING[CONSTRAINED == "TRUE" & TYPE_FIT == "SD" & STRAIN_MODEL == "Pre-Omicron" &
+          IMM_MODEL %in% c("HB") & WANED_MODEL == 1, 
+        IMM_FIT:="H"]
+
+
+MAPPING[CONSTRAINED == "TRUE" & TYPE_FIT == "SD" & STRAIN_MODEL == "Pre-Omicron" &
+          IMM_MODEL %in% c("HB") & WANED_MODEL == 1, 
+        IMM_FIT:="H"]
+
+Non_Linear_Parameters = merge(MAPPING, Non_Linear_Fit_reduced)
