@@ -1,0 +1,1447 @@
+---
+title: "Durability of COVID-19 vaccine and infection induced immunity: a systematic review and meta-regression analysis"
+author: 
+  - Mia Moore. Fred Hutchison Cancer Research Center, Seattle, WA
+  - Larissa Anderson. Fred Hutchison Cancer Research Center, Seattle, WA
+  - Joshua T. Schiffer. Fred Hutchison Cancer Research Center, Seattle, WA
+  - Laura Matrajt. Fred Hutchison Cancer Research Center, Seattle, WA
+  - Dobromir Dimitrov. Fred Hutchison Cancer Research Center, Seattle, WA
+output:
+  bookdown::word_document2:
+    number_sections: false
+bibliography: bibliography.bib
+csl: the-lancet
+---
+
+```{r setup, message = FALSE, warning = FALSE, echo = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+library(metafor)
+library(flextable)
+library(viridis)
+library(gridExtra)
+library(knitr)
+library(data.table)
+library(tidyverse)
+
+TRUNCATION_FLAG = T
+TRUNCATION_VALUE = 100
+results_directory = 
+  "../data/Meta_Analysis_Results/Results_2025-02-15/"
+
+results_by_type_directory = 
+"../data/Meta_Analysis_Results/Results_BY_TYPE_2025-02-15/"
+
+
+results_by_age_directory = 
+  "../data/Meta_Analysis_Results/Results_2025-02-17_age_adjust/"
+
+results_by_age_and_type_directory = 
+"../data/Meta_Analysis_Results/Results_BY_TYPE_2025-02-17_age_adjust/"
+```
+
+```{r Study Summary Table}
+STUDY_SUMMARY = readRDS(paste0(results_directory,"STUDY_SUMMARY.rds"))
+
+setkey(STUDY_SUMMARY, IMM, STRAIN,TYPE)
+STUDY_SUMMARY%>%
+  reshape(
+    direction = "wide",
+    idvar = c("IMM", "PSTRAIN", "TYPE"),
+    timevar = c("STRAIN"),
+    v.names = "studies"
+    )%>%
+  reshape(
+    direction = "wide",
+    idvar = c("IMM", "PSTRAIN"),
+    timevar = c("TYPE"),
+    times = c("S", "D", "M"),
+    v.names = c("studies.Pre-Omicron","studies.Omicron")
+  )->STUDY_TABLE
+
+STUDY_TABLE[PSTRAIN == "Omicron", "studies.Pre-Omicron.S" := "N/A"]
+STUDY_TABLE[PSTRAIN == "Omicron", "studies.Pre-Omicron.D" := "N/A"]
+STUDY_TABLE[PSTRAIN == "Omicron", "studies.Pre-Omicron.M" := "N/A"]
+
+STUDY_TABLE[is.na(studies.Omicron.S), studies.Omicron.S := "-"]
+STUDY_TABLE[is.na(studies.Omicron.D), studies.Omicron.D := "-"]
+STUDY_TABLE[is.na(studies.Omicron.M), studies.Omicron.M := "-"]
+STUDY_TABLE[is.na(`studies.Pre-Omicron.S`), "studies.Pre-Omicron.S" := "-"]
+STUDY_TABLE[is.na(`studies.Pre-Omicron.D`), "studies.Pre-Omicron.D" := "-"]
+STUDY_TABLE[is.na(`studies.Pre-Omicron.M`), "studies.Pre-Omicron.M" := "-"]
+
+STUDY_TABLE[IMM == "I", VACC_STATUS:= "None"]
+STUDY_TABLE[IMM %in% c("V", "H"), VACC_STATUS := "Primary"]
+STUDY_TABLE[IMM %in% c("B", "HB"), VACC_STATUS := "Boosted"]
+STUDY_TABLE[PSTRAIN == "Pre-Omicron", PRIOR_INFECTION := "pre-Omicron: \n Infection occurred during\n a window ending\n prior to Dec 1st, 2021"]
+STUDY_TABLE[PSTRAIN == "Omicron", PRIOR_INFECTION := "Omicron: \n Infection occurred during\n a window ending\n on or after Dec 1st, 2021"]
+STUDY_TABLE[PSTRAIN == "", PRIOR_INFECTION := "None"]
+
+setkey(STUDY_TABLE, PSTRAIN, IMM)
+STUDY_TABLE%>%
+  flextable(col_keys = c(
+    "PRIOR_INFECTION","VACC_STATUS", 
+    "studies.Pre-Omicron.S",
+    "studies.Omicron.S",
+    "studies.Pre-Omicron.D",
+    "studies.Omicron.D",
+    "studies.Pre-Omicron.M",
+    "studies.Omicron.M"
+  )
+            )%>%
+  set_header_labels(
+    values = c(
+               "Prior Infection", "Vaccination\nStatus", 
+               "Pre-Om", "Om", "Pre-Om", "Om", "Pre-Om", "Om"))%>%
+  add_header_row(
+    values = c("Prior Infection","Vaccination\nStatus","Infection", 
+               "Symp. Disease", "Sev. Disease"),
+    colwidths = c(1,1,2,2,2))%>%
+  mk_par(part = "header", j = 3,i = 1, 
+         value = as_paragraph("Infection (E", as_sub("S"), ")"))%>%
+  mk_par(part = "header", j = 5,i = 1, 
+         value = as_paragraph("Symptomatic\n Disease (E", as_sub("D"), ")"))%>%
+  mk_par(part = "header", j = 7,i = 1, 
+         value = as_paragraph("Severe Disease (E", as_sub("M"), ")"))%>%
+  add_header_row(
+    values = c( 
+               "Prior Infection","Vaccination\nStatus",
+               "Number of studies (time points) measure protection against..."),
+    colwidths = c(1, 1 ,6))%>%
+  merge_v(part = "header")%>% merge_v(j = 18)%>%fix_border_issues()%>%
+  autofit()->Estimate_table
+
+
+```
+
+```{r Load Meta Analysis Results}
+
+MODEL_SUMMARY <- readRDS(paste0(results_directory, "MODEL_SUMMARY.rds"))
+MODEL_SUMMARY_TYPE <- readRDS(paste0(results_by_type_directory, "MODEL_SUMMARY.rds"))
+
+RFIG_STRAIN_DATA = 
+  rbind(
+    cbind(readRDS(paste0(results_directory,"RFIG_STRAIN_DATA.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_type_directory,"RFIG_STRAIN_DATA.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_age_directory,"RFIG_STRAIN_DATA.rds")), AGE_ADJUST = T),
+    cbind(readRDS(paste0(results_by_age_and_type_directory,"RFIG_STRAIN_DATA.rds")), AGE_ADJUST = T),
+    fill = T
+    )
+
+RFIG_STRAIN_DATA_LOG = 
+  rbind(
+    cbind(readRDS(paste0(results_directory,"RFIG_STRAIN_DATA_LOG.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_type_directory,"RFIG_STRAIN_DATA_LOG.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_age_directory,"RFIG_STRAIN_DATA_LOG.rds")), AGE_ADJUST = T),
+    cbind(readRDS(paste0(results_by_age_and_type_directory,"RFIG_STRAIN_DATA_LOG.rds")), AGE_ADJUST = T),
+    fill = T
+  )
+RFIG_STRAIN_DATA[,version:="linear"]
+RFIG_STRAIN_DATA_LOG[,version:="log"]
+
+rbind(RFIG_STRAIN_DATA, RFIG_STRAIN_DATA_LOG)->RFIG_STRAIN_DATA
+
+RFIG_BOOSTER_DATA = 
+  rbind(
+    cbind(readRDS(paste0(results_directory,"RFIG_BOOSTER_DATA.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_type_directory,"RFIG_BOOSTER_DATA.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_age_directory,"RFIG_BOOSTER_DATA.rds")), AGE_ADJUST = T),
+    cbind(readRDS(paste0(results_by_age_and_type_directory,"RFIG_BOOSTER_DATA.rds")), AGE_ADJUST = T),
+    fill = T
+  )
+
+RFIG_BOOSTER_DATA_LOG = 
+  rbind(
+    cbind(readRDS(paste0(results_directory,"RFIG_BOOSTER_DATA_LOG.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_type_directory,"RFIG_BOOSTER_DATA_LOG.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_age_directory,"RFIG_BOOSTER_DATA_LOG.rds")), AGE_ADJUST = T),
+    cbind(readRDS(paste0(results_by_age_and_type_directory,"RFIG_BOOSTER_DATA_LOG.rds")), AGE_ADJUST = T),
+    fill = T
+  )
+
+RFIG_BOOSTER_DATA[,version:="linear"]
+RFIG_BOOSTER_DATA_LOG[,version:="log"]
+rbind(RFIG_BOOSTER_DATA, RFIG_BOOSTER_DATA_LOG)->RFIG_BOOSTER_DATA
+
+RFIG_BOOSTER_DATA_mod = 
+  rbind(
+    cbind(readRDS(paste0(results_directory,"RFIG_BOOSTER_DATA_mod.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_type_directory,"RFIG_BOOSTER_DATA_mod.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_age_directory,"RFIG_BOOSTER_DATA_mod.rds")), AGE_ADJUST = T),
+    cbind(readRDS(paste0(results_by_age_and_type_directory,"RFIG_BOOSTER_DATA_mod.rds")), AGE_ADJUST = T),
+    fill = T
+  )
+
+RFIG_BOOSTER_DATA_mod_LOG =
+  rbind(
+    cbind(readRDS(paste0(results_directory,"RFIG_BOOSTER_DATA_LOG_mod.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_type_directory,"RFIG_BOOSTER_DATA_LOG_mod.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_age_directory,"RFIG_BOOSTER_DATA_LOG_mod.rds")), AGE_ADJUST = T),
+    cbind(readRDS(paste0(results_by_age_and_type_directory,"RFIG_BOOSTER_DATA_LOG_mod.rds")), AGE_ADJUST = T),
+    fill = T
+  )
+
+RFIG_BOOSTER_DATA_mod[,version:="linear"]
+RFIG_BOOSTER_DATA_mod_LOG[,version:="log"]
+rbind(RFIG_BOOSTER_DATA_mod, RFIG_BOOSTER_DATA_mod_LOG)->RFIG_BOOSTER_DATA_mod
+
+RFIG_INF_DATA = 
+  rbind(
+    cbind(readRDS(paste0(results_directory,"RFIG_INF_DATA.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_type_directory,"RFIG_INF_DATA.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_age_directory,"RFIG_INF_DATA.rds")), AGE_ADJUST = T),
+    cbind(readRDS(paste0(results_by_age_and_type_directory,"RFIG_INF_DATA.rds")), AGE_ADJUST = T),
+    fill = T
+  )
+  
+RFIG_INF_DATA_LOG = 
+  rbind(
+    cbind(readRDS(paste0(results_directory,"RFIG_INF_DATA_LOG.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_type_directory,"RFIG_INF_DATA_LOG.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_age_directory,"RFIG_INF_DATA_LOG.rds")), AGE_ADJUST = T),
+    cbind(readRDS(paste0(results_by_age_and_type_directory,"RFIG_INF_DATA_LOG.rds")), AGE_ADJUST = T),
+    fill = T
+  )
+RFIG_INF_DATA[,version:="linear"]
+RFIG_INF_DATA_LOG[,version:="log"]
+RFIG_INF_DATA = rbind(RFIG_INF_DATA, RFIG_INF_DATA_LOG)
+
+RFIG_INF_DATA_pstrain = 
+  rbind(
+    cbind(readRDS(paste0(results_directory,"RFIG_INF_DATA_pstrain.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_type_directory,"RFIG_INF_DATA_pstrain.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_age_directory,"RFIG_INF_DATA_pstrain.rds")), AGE_ADJUST = T),
+    cbind(readRDS(paste0(results_by_age_and_type_directory,"RFIG_INF_DATA_pstrain.rds")), AGE_ADJUST = T),
+    fill = T
+  ) 
+  
+  
+RFIG_INF_DATA_pstrain_LOG = 
+  rbind(
+    cbind(readRDS(paste0(results_directory,"RFIG_INF_DATA_pstrain_LOG.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_type_directory,"RFIG_INF_DATA_pstrain_LOG.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_age_directory,"RFIG_INF_DATA_pstrain_LOG.rds")), AGE_ADJUST = T),
+    cbind(readRDS(paste0(results_by_age_and_type_directory,"RFIG_INF_DATA_pstrain_LOG.rds")), AGE_ADJUST = T),
+    fill = T
+  ) 
+  
+RFIG_INF_DATA_pstrain[,version:="linear"]
+RFIG_INF_DATA_pstrain_LOG[,version:="log"]
+RFIG_INF_DATA_pstrain = rbind(RFIG_INF_DATA_pstrain, RFIG_INF_DATA_pstrain_LOG)
+
+RFIG_HYBRID_BOOSTED_DATA = 
+  rbind(
+    cbind(readRDS(paste0(results_directory,"RFIG_HYBRID_BOOSTED_DATA.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_type_directory,"RFIG_HYBRID_BOOSTED_DATA.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_age_directory,"RFIG_HYBRID_BOOSTED_DATA.rds")), AGE_ADJUST = T),
+    cbind(readRDS(paste0(results_by_age_and_type_directory,"RFIG_HYBRID_BOOSTED_DATA.rds")), AGE_ADJUST = T),
+    fill = T
+  )  
+  
+RFIG_HYBRID_BOOSTED_DATA_LOG = 
+  rbind(
+    cbind(readRDS(paste0(results_directory,"RFIG_HYBRID_BOOSTED_DATA_LOG.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_type_directory,"RFIG_HYBRID_BOOSTED_DATA_LOG.rds")), AGE_ADJUST = F),
+    cbind(readRDS(paste0(results_by_age_directory,"RFIG_HYBRID_BOOSTED_DATA_LOG.rds")), AGE_ADJUST = T),
+    cbind(readRDS(paste0(results_by_age_and_type_directory,"RFIG_HYBRID_BOOSTED_DATA_LOG.rds")), AGE_ADJUST = T),
+    fill = T
+  ) 
+
+
+RFIG_HYBRID_BOOSTED_DATA[,version:="linear"]
+RFIG_HYBRID_BOOSTED_DATA_LOG[,version:="log"]
+rbind(RFIG_HYBRID_BOOSTED_DATA, RFIG_HYBRID_BOOSTED_DATA_LOG)->RFIG_HYBRID_BOOSTED_DATA
+```
+
+```{r Color Palette}
+
+strain_colors<-RColorBrewer::brewer.pal(9,"Set1")[1:4]
+strain_colors2<-viridis(6)
+
+dose_colors2 = c(
+  TRUEOmicron = "#22A884FF",
+  FALSEOmicron = "#22A8844C",
+  `TRUEPre-Omicron` = "#440154FF",
+  `FALSEPre-Omicron` = "#4401544C"
+)
+
+dose_colors3 = c(#"VPre-Omicron" = "#88CCEE", 
+                "V" = "#332288",
+                #"BPre-Omicron" = "#44AA99",
+                #"BOmicron" = "#117733",
+                "I" = "#DDCC77",
+                #"HOmicron" = "#999933",
+                "H" = "#AA4499"
+                #"H" = "#882255"
+                )
+
+
+```
+
+```{r Color Palette}
+
+strain_colors<-RColorBrewer::brewer.pal(9,"Set1")[1:4]
+strain_colors2<-viridis(6)
+
+dose_colors2 = c(
+  TRUEOmicron = "#22A884FF",
+  FALSEOmicron = "#22A8844C",
+  `TRUEPre-Omicron` = "#440154FF",
+  `FALSEPre-Omicron` = "#4401544C"
+)
+
+dose_colors3 = c(#"VPre-Omicron" = "#88CCEE", 
+                "V" = "#332288",
+                #"BPre-Omicron" = "#44AA99",
+                #"BOmicron" = "#117733",
+                "I" = "#DDCC77",
+                #"HOmicron" = "#999933",
+                "H" = "#AA4499"
+                #"H" = "#882255"
+                )
+
+
+```
+
+
+
+```{r Rearrange Strain Table}
+
+BEST_FIT_STRAIN = RFIG_STRAIN_DATA[OUTPUT == "BIC",.(method = method[which.min(VALUE)], 
+                                                     AGE_ADJUST = AGE_ADJUST[which.min(VALUE)]),
+                                   .(TYPE, version, STUDY_TYPE_SIMPLE)]
+
+#Predictions for each study
+pred.DT = merge(RFIG_STRAIN_DATA[OUTPUT == "Standards",
+                        .(pred, se, ci.lb, ci.ub),
+                        .(STRAIN, TYPE, MIN_TIME, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)],
+                RFIG_STRAIN_DATA[OUTPUT == "Predicted",
+                                 .(DOF = .N - 4),
+                                 .(TYPE, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)])
+
+if(TRUNCATION_FLAG == T){
+  pred.DT = merge(RFIG_STRAIN_DATA[OUTPUT == "Standards",
+                        .(pred = pmin(pred, TRUNCATION_VALUE), se, 
+                          ci.lb = pmin(ci.lb, TRUNCATION_VALUE), 
+                          ci.ub = pmin(ci.ub, TRUNCATION_VALUE)),
+                        .(STRAIN, TYPE, MIN_TIME, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)],
+                RFIG_STRAIN_DATA[OUTPUT == "Predicted",
+                                 .(DOF = .N - 4),
+                                 .(TYPE, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)])
+}
+
+pred.DT[,pvalue := (1 - pt(abs(pred/se), df = DOF)) * 2,]
+
+pred.DT[version=="linear",print.value := paste0(
+  sprintf("%.1f", pred), " (", 
+  sprintf("%.1f", ci.lb), " - ", 
+  sprintf("%.1f", ci.ub), ")"
+),]
+
+
+pred.DT[version=="log",print.value := paste0(
+  sprintf("%.1f", 100 - 100 * exp(pred)), " (", 
+  sprintf("%.1f", 100 - 100 * exp(ci.ub)), " - ", 
+  sprintf("%.1f", 100 - 100 * exp(ci.lb)), ")"
+),]
+
+
+pred.DT[version=="log" & is.na(MIN_TIME),print.value := paste0(
+  sprintf("%.2f", exp(-pred)), " (", 
+  sprintf("%.2f", exp(-ci.ub)), " - ", 
+  sprintf("%.2f", exp(-ci.lb)), ")"
+),]
+
+pred.DT[is.na(MIN_TIME) & pvalue< .05,print.value := paste0(print.value, "*"),]
+pred.DT[is.na(MIN_TIME) & pvalue < .01,print.value := paste0(print.value, "*"),]
+pred.DT[is.na(MIN_TIME) & pvalue < .001,print.value := paste0(print.value, "*"),]
+pred.DT[,print.value:=gsub(".", "\U00B7", print.value, fixed = TRUE),]
+
+pred.DT[,measure:=as.character(MIN_TIME),]
+pred.DT[is.na(MIN_TIME), measure:="sl"]
+
+
+pvalues.DT = merge(RFIG_STRAIN_DATA[OUTPUT == "Contrasts",
+                           .(pred, se, ci.lb, ci.ub),
+                           .(STRAIN, TYPE, MIN_TIME, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)],
+                   RFIG_STRAIN_DATA[OUTPUT == "Predicted",
+                                 .(DOF = .N - 4),
+                                 .(TYPE, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)]
+)
+                   
+
+pvalues.DT[,pvalue := (1 - pt(abs(pred/se), df = DOF)) * 2,]
+
+pvalues.DT[,print.value := sprintf("%.2f", pvalue),]
+#pvalues.DT[pvalue < .1,print.value := sprintf("%.3f", pvalue),]
+#pvalues.DT[pvalue < .01,print.value := sprintf("%.4f", pvalue),]
+pvalues.DT[,print.value := sprintf("%.2g", pvalue),]
+pvalues.DT[pvalue < .0001,print.value := "<0.0001",]
+pvalues.DT[,print.value:=gsub(".", "\U00B7", print.value, fixed = TRUE),]
+pvalues.DT[,measure:=as.character(MIN_TIME),]
+pvalues.DT[is.na(MIN_TIME), measure:="sl"]
+
+rtable_strain = 
+  rbind(pred.DT[,.(TYPE,STRAIN,measure, print.value, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST),],
+        pvalues.DT[,.(STRAIN,TYPE, measure, print.value, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST),]
+        )%>%reshape(timevar = "measure", 
+                    idvar = c("TYPE", "STRAIN", "method", "version", "STUDY_TYPE_SIMPLE", 
+                              "AGE_ADJUST"), 
+                    direction = "wide")
+
+rtable_strain[,TYPE := factor(TYPE, levels = c("S", "D", "M")),]
+rtable_strain[TYPE == "S", OUTCOME:= "Infection"]
+rtable_strain[TYPE == "D", OUTCOME:= "Symptomatic\nDisease"]
+rtable_strain[TYPE == "M", OUTCOME:= "Severe\nDisease"]
+rtable_strain[BEST_FIT_STRAIN, on=.(TYPE, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)] ->rtable_strain_best_only
+rtable_strain_best_only[,TYPE := factor(TYPE, levels = c("S", "D", "M")),]
+setkey(rtable_strain_best_only, TYPE, STRAIN, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)
+setkey(rtable_strain, TYPE, STRAIN, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)
+saveRDS(rtable_strain_best_only, paste0(results_directory, "rtable_strain_bestfit.rds"))
+saveRDS(
+  rtable_strain[RFIG_STRAIN_DATA[OUTPUT == "BIC",
+                                 .(BIC = VALUE),
+                                 .(method, TYPE, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)], 
+                      on = .(method, TYPE, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)],
+  paste0(results_directory,"rtable_strain.rds"))
+```
+
+
+```{r Rearrange Booster Table}
+BEST_FIT_BOOSTER = RFIG_BOOSTER_DATA_mod[OUTPUT == "BIC",
+                                         .(method = method[which.min(VALUE)],
+                                           AGE_ADJUST = AGE_ADJUST[which.min(AGE_ADJUST)]),
+                                         .(TYPE, STRAIN, version, STUDY_TYPE_SIMPLE)]
+
+pred.DT = merge(RFIG_BOOSTER_DATA_mod[OUTPUT == "Standards",
+                        .(pred, se, ci.lb, ci.ub, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST),
+                        .(STRAIN, TYPE, Boosted, MIN_TIME)],
+                RFIG_BOOSTER_DATA_mod[OUTPUT == "Predicted",
+                                 .(DOF = .N - 4),
+                                 .(TYPE, STRAIN, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)])
+
+if(TRUNCATION_FLAG == T){
+  pred.DT = merge(RFIG_BOOSTER_DATA_mod[OUTPUT == "Standards",
+                        .(pred = pmin(pred, TRUNCATION_VALUE), se, 
+                          ci.lb = pmin(ci.lb, TRUNCATION_VALUE), 
+                          ci.ub = pmin(ci.ub, TRUNCATION_VALUE)),
+                        .(STRAIN, TYPE, Boosted,MIN_TIME, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)],
+                RFIG_BOOSTER_DATA_mod[OUTPUT == "Predicted",
+                                 .(DOF = .N - 4),
+                                 .(TYPE, STRAIN, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)])
+}
+
+pred.DT[,pvalue := (1 - pt(abs(pred/se), df = DOF)) * 2,]
+
+pred.DT[,print.value := paste0(
+  sprintf("%.1f", pred), " (", 
+  sprintf("%.1f", ci.lb), " - ", 
+  sprintf("%.1f", ci.ub), ")"
+),]
+
+pred.DT[version=="log",print.value := paste0(
+  sprintf("%.1f", 100 - 100 * exp(pred)), " (", 
+  sprintf("%.1f", 100 - 100 * exp(ci.ub)), " - ", 
+  sprintf("%.1f", 100 - 100 * exp(ci.lb)), ")"
+),]
+
+
+pred.DT[version=="log" & is.na(MIN_TIME),print.value := paste0(
+  sprintf("%.2f", exp(-pred)), " (", 
+  sprintf("%.2f", exp(-ci.ub)), " - ", 
+  sprintf("%.2f", exp(-ci.lb)), ")"
+),]
+
+pred.DT[is.na(MIN_TIME) & pvalue < .05, print.value := paste0(print.value, "*"),]
+pred.DT[is.na(MIN_TIME) & pvalue < .01, print.value := paste0(print.value, "*"),]
+pred.DT[is.na(MIN_TIME) & pvalue < .001, print.value := paste0(print.value, "*"),]
+pred.DT[,print.value:=gsub(".", "\U00B7", print.value, fixed = TRUE),]
+pred.DT[,measure:=as.character(MIN_TIME),]
+pred.DT[is.na(MIN_TIME), measure:="sl"]
+
+pvalues.DT = merge(RFIG_BOOSTER_DATA_mod[OUTPUT == "Contrasts",
+                           .(pred, se, ci.lb, ci.ub),
+                           .(STRAIN, TYPE, Boosted, MIN_TIME, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)],
+                   RFIG_BOOSTER_DATA_mod[OUTPUT == "Predicted",
+                                 .(DOF = .N - 4),
+                                 .(TYPE, STRAIN, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)]
+)
+                   
+
+pvalues.DT[,pvalue := (1 - pt(abs(pred/se), df = DOF)) * 2,]
+
+
+pvalues.DT[,print.value := sprintf("%.2g", pvalue),]
+pvalues.DT[pvalue < .0001,print.value := "<0.0001",]
+pvalues.DT[,print.value:=gsub(".", "\U00B7", print.value, fixed = TRUE),]
+pvalues.DT[,measure:=as.character(MIN_TIME),]
+pvalues.DT[is.na(MIN_TIME), measure:="sl"]
+
+rtable_booster = rbind(pred.DT[,.(TYPE,STRAIN, Boosted, measure, 
+                                  print.value, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST),],
+                       pvalues.DT[,.(STRAIN,TYPE,Boosted, measure, 
+                                     print.value, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST),]
+                       )%>%reshape(timevar = "measure", 
+                                   idvar = c("TYPE", "STRAIN", 
+                                             "Boosted", "method", "version", "STUDY_TYPE_SIMPLE", "AGE_ADJUST"), 
+                                   direction = "wide")
+
+rtable_booster[TYPE == "S", OUTCOME:= "Infection"]
+rtable_booster[TYPE == "D", OUTCOME:= "Symptomatic\nDisease"]
+rtable_booster[TYPE == "M", OUTCOME:= "Severe\nDisease"]
+rtable_booster[Boosted == F, DOSE:= "Primary"]
+rtable_booster[Boosted == T, DOSE:= "Primary + Booster"]
+rtable_booster[Boosted == "p-value", DOSE:= "p-value"]
+rtable_booster[,DOSE:=factor(DOSE, levels = c("Primary", "Primary + Booster", "p-value"))]
+rtable_booster_bestfit_only = 
+  rtable_booster[BEST_FIT_BOOSTER, 
+                 on=.(TYPE, STRAIN, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)]
+
+rtable_booster_bestfit_only[,TYPE := factor(TYPE, levels = c("S", "D", "M")),]
+setkey(rtable_booster_bestfit_only, AGE_ADJUST, STUDY_TYPE_SIMPLE, version, TYPE, STRAIN, DOSE)
+setkey(rtable_booster, AGE_ADJUST, STUDY_TYPE_SIMPLE, version, TYPE, STRAIN, method, DOSE)
+saveRDS(rtable_booster_bestfit_only, 
+        paste0(results_directory,"rtable_booster_bestfit.rds"))
+saveRDS(rtable_booster[RFIG_BOOSTER_DATA[OUTPUT == "BIC",
+                                         .(BIC = VALUE),
+                                         .(method, version, AGE_ADJUST,
+                                           STUDY_TYPE_SIMPLE, TYPE, STRAIN)], 
+                       on = .(method, version, STUDY_TYPE_SIMPLE, TYPE, STRAIN, AGE_ADJUST)], 
+        paste0(results_directory,"rtable_booster.rds"))
+```
+
+
+```{r Rearrange Hybrid Boosted Table, include = FALSE}
+BEST_FIT_HBOOSTER = 
+  RFIG_HYBRID_BOOSTED_DATA[OUTPUT == "BIC",
+                           .(method = method[which.min(VALUE)],
+                             AGE_ADJUST = AGE_ADJUST[which.min(AGE_ADJUST)]),
+                           .(TYPE, STRAIN, version, STUDY_TYPE_SIMPLE)]
+
+
+pred.DT = merge(RFIG_HYBRID_BOOSTED_DATA[OUTPUT == "Standards",
+                        .(pred, se, ci.lb, ci.ub),
+                        .(STRAIN, TYPE, Infected,MIN_TIME, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)],
+                   RFIG_HYBRID_BOOSTED_DATA[OUTPUT == "Predicted",
+                                 .(DOF = .N - 4),
+                                 .(TYPE, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)])
+
+if(TRUNCATION_FLAG == T){
+  pred.DT = merge(RFIG_HYBRID_BOOSTED_DATA[OUTPUT == "Standards",
+                        .(pred = pmin(pred, TRUNCATION_VALUE), se, 
+                          ci.lb = pmin(ci.lb, TRUNCATION_VALUE), 
+                          ci.ub = pmin(ci.ub, TRUNCATION_VALUE)),
+                        .(STRAIN, TYPE, Infected, MIN_TIME, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)],
+                   RFIG_HYBRID_BOOSTED_DATA[OUTPUT == "Predicted",
+                                 .(DOF = .N - 4),
+                                 .(TYPE, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)])
+}
+
+
+pred.DT[,pvalue := (1 - pt(abs(pred/se), df = DOF)) * 2,]
+
+pred.DT[,print.value := paste0(
+  sprintf("%.1f", pred), " (", 
+  sprintf("%.1f", ci.lb), " - ", 
+  sprintf("%.1f", ci.ub), ")"
+),]
+
+
+pred.DT[version=="log",print.value := paste0(
+  sprintf("%.1f", 100 - 100 * exp(pred)), " (", 
+  sprintf("%.1f", 100 - 100 * exp(ci.ub)), " - ", 
+  sprintf("%.1f", 100 - 100 * exp(ci.lb)), ")"
+),]
+
+
+pred.DT[version=="log" & is.na(MIN_TIME),print.value := paste0(
+  sprintf("%.2f", exp(-pred)), " (", 
+  sprintf("%.2f", exp(-ci.ub)), " - ", 
+  sprintf("%.2f", exp(-ci.lb)), ")"
+),]
+
+pred.DT[is.na(MIN_TIME) & pvalue< .05, print.value := paste0(print.value, "*"),]
+pred.DT[is.na(MIN_TIME) & pvalue < .01, print.value := paste0(print.value, "*"),]
+pred.DT[is.na(MIN_TIME) & pvalue < .001, print.value := paste0(print.value, "*"),]
+pred.DT[,print.value:=gsub(".", "\U00B7", print.value, fixed = TRUE),]
+pred.DT[,measure:=as.character(MIN_TIME),]
+pred.DT[is.na(MIN_TIME), measure:="sl"]
+
+pvalues.DT = merge(RFIG_HYBRID_BOOSTED_DATA[OUTPUT == "Contrasts",
+                           .(pred, se, ci.lb, ci.ub),
+                           .(STRAIN, TYPE, Infected, MIN_TIME, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)],
+                   RFIG_HYBRID_BOOSTED_DATA[OUTPUT == "Predicted",
+                                 .(DOF = .N - 4),
+                                 .(TYPE, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)]
+)
+                   
+
+pvalues.DT[,pvalue := (1 - pt(abs(pred/se), df = DOF)) * 2,]
+
+
+pvalues.DT[,print.value := sprintf("%.2g", pvalue),]
+pvalues.DT[pvalue < .0001,print.value := "<0.0001",]
+pvalues.DT[,measure:=as.character(MIN_TIME),]
+pvalues.DT[is.na(MIN_TIME), measure:="sl"]
+
+rtable_infection_hboosted = rbind(pred.DT[,.(TYPE,STRAIN, Infected, measure, print.value, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST),],pvalues.DT[,.(STRAIN,TYPE,Infected, measure, print.value, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST),])%>%reshape(timevar = "measure", idvar = c("TYPE", "STRAIN", "Infected", "method", "version", "STUDY_TYPE_SIMPLE", "AGE_ADJUST"), direction = "wide")
+
+rtable_infection_hboosted[TYPE == "S", OUTCOME:= "SARS-Cov-2\nInfection"]
+rtable_infection_hboosted[TYPE == "D", OUTCOME:= "Symptomatic\nCOVID-19\nDisease"]
+rtable_infection_hboosted[Infected == F, DOSE:= "Primary + Booster"]
+rtable_infection_hboosted[Infected == T, DOSE:= "Primary + Booster +\nPrior Infection"]
+rtable_infection_hboosted[Infected == "p-value", DOSE:= "p-value"]
+rtable_infection_hboosted[,DOSE:=factor(DOSE, levels = c("Primary + Booster", 
+                                                         "Primary + Booster +\nPrior Infection", "p-value"))]
+
+rtable_infection_hboosted_bestfit = 
+  rtable_infection_hboosted[BEST_FIT_HBOOSTER, on = .(TYPE, STRAIN, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)]
+rtable_infection_hboosted_bestfit[,TYPE := factor(TYPE, levels = c("S", "D")),]
+setkey(rtable_infection_hboosted_bestfit, TYPE, STRAIN, DOSE, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)
+
+
+saveRDS(rtable_infection_hboosted_bestfit, paste0(results_directory, "rtable_hboosted_bestfit.rds"))
+saveRDS(rtable_infection_hboosted[RFIG_HYBRID_BOOSTED_DATA[OUTPUT == "BIC",.(BIC = VALUE),.(method, TYPE, STRAIN, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)], 
+                      on = .(method, TYPE, STRAIN, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)], paste0(results_directory,"rtable_hboosted.rds"))
+```
+
+
+```{r Rearrange Infection Table}
+BEST_FIT_INF = 
+  RFIG_INF_DATA[OUTPUT == "BIC",
+                           .(method = method[which.min(VALUE)],
+                             AGE_ADJUST = AGE_ADJUST[which.min(VALUE)]),
+                           .(TYPE, STRAIN, version, STUDY_TYPE_SIMPLE)]
+
+
+pred.DT = merge(RFIG_INF_DATA[OUTPUT == "Standards",
+                        .(pred, se, ci.lb, ci.ub),
+                        .(STRAIN, TYPE, IMM, MIN_TIME, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)],
+                   RFIG_INF_DATA[OUTPUT == "Predicted",
+                                 .(DOF = .N - 6),
+                                 .(TYPE, STRAIN, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)])
+
+
+if(TRUNCATION_VALUE == T){
+  pred.DT = merge(RFIG_INF_DATA[OUTPUT == "Standards",
+                        .(pred = pmin(pred, TRUNCATION_VALUE), se, 
+                          ci.lb = pmin(ci.lb, TRUNCATION_VALUE), 
+                          ci.ub = pmin(ci.ub, TRUNCATION_VALUE)),
+                        .(STRAIN, TYPE, IMM, MIN_TIME, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)],
+                   RFIG_INF_DATA[OUTPUT == "Predicted",
+                                 .(DOF = .N - 6),
+                                 .(TYPE, STRAIN, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)])
+}
+
+
+pred.DT[,pvalue := (1 - pt(abs(pred/se), df = DOF)) * 2,]
+
+pred.DT[,print.value := paste0(
+  sprintf("%.1f", pred), " (", 
+  sprintf("%.1f", ci.lb), " - ", 
+  sprintf("%.1f", pmin(ci.ub, 100)), ")"
+),]
+
+
+pred.DT[version=="log",print.value := paste0(
+  sprintf("%.1f", 100 - 100 * exp(pred)), " (", 
+  sprintf("%.1f", 100 - 100 * exp(ci.ub)), " - ", 
+  sprintf("%.1f", 100 - 100 * exp(ci.lb)), ")"
+),]
+
+
+pred.DT[version=="log" & is.na(MIN_TIME),print.value := paste0(
+  sprintf("%.2f", exp(-pred)), " (", 
+  sprintf("%.2f", exp(-ci.ub)), " - ", 
+  sprintf("%.2f", exp(-ci.lb)), ")"
+),]
+
+pred.DT[is.na(MIN_TIME) & pvalue< .05,print.value := paste0(print.value, "*"),]
+pred.DT[is.na(MIN_TIME) & pvalue < .01,print.value := paste0(print.value, "*"),]
+pred.DT[is.na(MIN_TIME) & pvalue < .001,print.value := paste0(print.value, "*"),]
+pred.DT[,print.value:=gsub(".", "\U00B7", print.value, fixed = TRUE),]
+pred.DT[,measure:=as.character(MIN_TIME),]
+pred.DT[is.na(MIN_TIME), measure:="sl"]
+
+pvalues.DT = merge(RFIG_INF_DATA[OUTPUT == "Contrasts",
+                           .(pred, se, ci.lb, ci.ub),
+                           .(STRAIN, TYPE, IMM, MIN_TIME, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)],
+                   RFIG_INF_DATA[OUTPUT == "Predicted",
+                                 .(DOF = .N - 6),
+                                 .(TYPE, STRAIN, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)]
+)
+                   
+
+pvalues.DT[,pvalue := (1 - pt(abs(pred/se), df = DOF)) * 2,]
+
+
+pvalues.DT[,print.value := sprintf("%.2g", pvalue),]
+pvalues.DT[pvalue < .0001,print.value := "<0.0001",]
+pvalues.DT[,measure:=as.character(MIN_TIME),]
+pvalues.DT[is.na(MIN_TIME), measure:="sl"]
+
+rtable_infection = rbind(pred.DT[,.(TYPE,STRAIN, IMM, measure, print.value, 
+                                    method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST),],
+                     pvalues.DT[,.(STRAIN, TYPE, IMM, measure, print.value, 
+                                   method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST),]
+                     )%>%reshape(timevar = "measure", 
+                                 idvar = c("TYPE", "STRAIN", "IMM", 
+                                           "method", "version", "STUDY_TYPE_SIMPLE",
+                                           "AGE_ADJUST"), 
+                                 direction = "wide")
+
+rtable_infection[TYPE == "S", OUTCOME:= "Infection"]
+rtable_infection[TYPE == "D", OUTCOME:= "Symptomatic\nDisease"]
+rtable_infection[IMM == "V", IMMUNITY:= "Primary"]
+rtable_infection[IMM == "I", IMMUNITY:= "Natural Imm."]
+rtable_infection[IMM == "H", IMMUNITY:= "Hybrid"]
+rtable_infection[IMM == "I vs V", IMMUNITY:= "N.I. vs Pri."]
+rtable_infection[IMM == "H vs V", IMMUNITY:= "Hyb. vs Pri."]
+rtable_infection[,IMM:=factor(IMM, levels = c("V", "I", "H", "I vs V", "H vs V")),]
+rtable_infection[,STRAIN:=factor(STRAIN, levels = c("Pre-Omicron", "Omicron")),]
+rtable_infection[,TYPE:=factor(TYPE, levels = c("S", "D")),]
+rtable_infection_bestfit_only = 
+  rtable_infection[BEST_FIT_INF, on=.(TYPE, STRAIN, method, AGE_ADJUST, version, STUDY_TYPE_SIMPLE)]
+setkey(rtable_infection, STUDY_TYPE_SIMPLE, version, TYPE, STRAIN, method, IMM)
+rtable_infection_bestfit_only[,TYPE:=factor(TYPE, levels = c("S", "D")),]
+setkey(rtable_infection_bestfit_only,AGE_ADJUST,STUDY_TYPE_SIMPLE, version, TYPE, STRAIN, IMM)
+
+
+saveRDS(rtable_infection_bestfit_only, paste0(results_directory, "rtable_infection_bestfit.rds"))
+saveRDS(rtable_infection[RFIG_INF_DATA[OUTPUT == "BIC",.(BIC = VALUE),
+                                       .(method, AGE_ADJUST, version, STUDY_TYPE_SIMPLE, TYPE, STRAIN)], 
+                      on = .(method, AGE_ADJUST, version, STUDY_TYPE_SIMPLE, TYPE, STRAIN)], 
+        paste0(results_directory,"rtable_infection.rds"))
+```
+
+
+```{r Rearrange Infection by Prior Strain Table}
+BEST_FIT_INF_pstrain = 
+  RFIG_INF_DATA_pstrain[OUTPUT == "BIC",
+                           .(method = method[which.min(VALUE)],
+                             AGE_ADJUST = AGE_ADJUST[which.min(VALUE)]),
+                           .(TYPE, STRAIN, version, STUDY_TYPE_SIMPLE)]
+
+
+pred.DT = RFIG_INF_DATA_pstrain[OUTPUT == "Standards",
+                        .(pred, se, ci.lb, ci.ub),
+                        .(IMMP, MIN_TIME, TYPE, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)]
+
+if(TRUNCATION_FLAG == T){
+  pred.DT = RFIG_INF_DATA_pstrain[OUTPUT == "Standards",
+                        .(pred = pmin(pred, TRUNCATION_VALUE), se, 
+                          ci.lb = pmin(ci.lb, TRUNCATION_VALUE), 
+                          ci.ub = pmin(ci.ub, TRUNCATION_VALUE)),
+                        .(IMMP, MIN_TIME, TYPE, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)]
+}
+
+pred.DT[,DOF:=nrow(RFIG_INF_DATA_pstrain[OUTPUT == "Predicted"]) - 10,]
+
+
+pred.DT[,pvalue := (1 - pt(abs(pred/se), df = DOF)) * 2,]
+
+pred.DT[,print.value := paste0(
+  sprintf("%.1f", pred), " (", 
+  sprintf("%.1f", ci.lb), " - ", 
+  sprintf("%.1f", ci.ub), ")"
+),]
+
+pred.DT[version=="log",print.value := paste0(
+  sprintf("%.1f", 100 - 100 * exp(pred)), " (", 
+  sprintf("%.1f", 100 - 100 * exp(ci.ub)), " - ", 
+  sprintf("%.1f", 100 - 100 * exp(ci.lb)), ")"
+),]
+
+
+pred.DT[version=="log" & is.na(MIN_TIME),print.value := paste0(
+  sprintf("%.2f", exp(-pred)), " (", 
+  sprintf("%.2f", exp(-ci.ub)), " - ", 
+  sprintf("%.2f", exp(-ci.lb)), ")"
+),]
+
+pred.DT[is.na(MIN_TIME) & pvalue< .05,print.value := paste0(print.value, "*"),]
+pred.DT[is.na(MIN_TIME) & pvalue < .01,print.value := paste0(print.value, "*"),]
+pred.DT[is.na(MIN_TIME) & pvalue < .001,print.value := paste0(print.value, "*"),]
+pred.DT[,print.value:=gsub(".", "\U00B7", print.value, fixed = TRUE),]
+pred.DT[,measure:=as.character(MIN_TIME),]
+pred.DT[is.na(MIN_TIME), measure:="sl"]
+
+pvalues.DT = RFIG_INF_DATA_pstrain[OUTPUT == "Contrasts",
+                           .(pred, se, ci.lb, ci.ub),
+                           .(IMMP, MIN_TIME, TYPE, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)]
+
+pvalues.DT[,DOF:=nrow(RFIG_INF_DATA_pstrain[OUTPUT == "Predicted"]) - 10,]
+
+pvalues.DT[,pvalue := (1 - pt(abs(pred/se), df = DOF)) * 2,]
+
+
+pvalues.DT[,print.value := sprintf("%.2g", pvalue),]
+pvalues.DT[pvalue < .0001,print.value := "<0.0001",]
+pvalues.DT[,measure:=as.character(MIN_TIME),]
+pvalues.DT[is.na(MIN_TIME), measure:="sl"]
+
+rtable_infection_mod = rbind(pred.DT[,.(IMMP, TYPE, measure, 
+                                        version, STUDY_TYPE_SIMPLE, AGE_ADJUST,
+                                        print.value, method),],
+                     pvalues.DT[,.(IMMP, TYPE, measure, 
+                                   version, STUDY_TYPE_SIMPLE, AGE_ADJUST,
+                                   print.value, method),]
+                     )%>%reshape(timevar = "measure", 
+                                 idvar = c("IMMP", "TYPE", 
+                                           "method", "version", "STUDY_TYPE_SIMPLE", 
+                                           "AGE_ADJUST"), 
+                                 direction = "wide")
+
+rtable_infection_mod[TYPE == "S", OUTCOME:= "Infection"]
+rtable_infection_mod[TYPE == "D", OUTCOME:= "Symptomatic\nDisease"]
+rtable_infection_mod[IMMP == "V", IMMUNITY:= "Primary"]
+rtable_infection_mod[IMMP %in% c("IPre-Omicron", "IPost-Omicron"), IMMUNITY:= "Natural Imm."]
+rtable_infection_mod[IMMP %in% c("HPre-Omicron", "HPost-Omicron"), IMMUNITY:= "Hybrid"]
+rtable_infection_mod[IMMP %in% c("I (Pre) vs V", "I (Post) vs V"), IMMUNITY:= "N.I. vs Pri."]
+rtable_infection_mod[IMMP %in% c("H (Pre) vs V", "H (Post) vs V"), IMMUNITY:= "Hyb. vs Pri."]
+rtable_infection_mod[IMMP %in% c("H (Pre) vs V", "I (Pre) vs V", "HPre-Omicron", "IPre-Omicron"), PSTRAIN:= "Pre-Omicron"]
+rtable_infection_mod[IMMP %in% c("H (Post) vs V", "I (Post) vs V", "HPost-Omicron", "IPost-Omicron"), PSTRAIN:= "Omicron"]
+rtable_infection_mod[,IMMUNITY:=factor(IMMUNITY, levels = c("Primary", "Natural Imm.", "Hybrid", "N.I. vs Pri.", "Hyb. vs Pri.")),]
+rtable_infection_mod[,PSTRAIN:=factor(PSTRAIN, levels = c("Pre-Omicron", "Omicron")),]
+rtable_infection_mod[,TYPE:=factor(TYPE, levels = c("S", "D")),]
+rtable_infection_mod_bestfit_only = 
+  rtable_infection_mod[BEST_FIT_INF_pstrain, on=.(TYPE, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)]
+setkey(rtable_infection_mod, AGE_ADJUST, STUDY_TYPE_SIMPLE, version, TYPE, PSTRAIN, method, IMMUNITY)
+rtable_infection_mod_bestfit_only[,TYPE:=factor(TYPE, levels = c("S", "D")),]
+setkey(rtable_infection_mod_bestfit_only, AGE_ADJUST, STUDY_TYPE_SIMPLE, version, TYPE, PSTRAIN, IMMUNITY)
+
+
+saveRDS(rtable_infection_mod_bestfit_only, paste0(results_directory, "rtable_infection_mod_bestfit.rds"))
+
+saveRDS(rtable_infection_mod[
+  RFIG_INF_DATA_pstrain[OUTPUT == "BIC",.(BIC = VALUE),
+                        .(method, version, TYPE, STUDY_TYPE_SIMPLE, AGE_ADJUST)],
+  on = .(method, version, TYPE, STUDY_TYPE_SIMPLE, AGE_ADJUST)], paste0(results_directory,"rtable_infection_mod.rds"))
+
+```
+
+
+# Summary
+
+## Background
+Despite the successful development and rollout of mRNA vaccines, COVID-19 remains a significant public health threat. Waning of immune memory over time as well as the emergence of new strains can degrade population-level protection and contribute to ongoing morbidity.
+
+## Methods
+In this systematic review and meta-regression, we searched for studies in PubMed, medRxiv and bioRxiv published January 1, 2020 – January 1, 2023 measuring reduction in infection, symptomatic disease, and severe disease conferred by mRNA-based vaccination and prior SARS-CoV-2 infections relative to naïve individuals. We excluded studies that did not distinguish between mRNA and non-mRNA vaccines or had less than 1000 participants. Using a multi-level model, we quantified the strength and durability of each form of protection by time since vaccination or infection.
+
+## Findings
+Out of 828 screen, we included 123 studies in our analysis. Vaccine effectiveness against infection and disease declined both over time and with the emergence of Omicron, regardless of booster doses, though protection against severe outcomes was more durable. Booster doses reduced severe Omicron infections by 90.0% (95% confidence interval 86.2 - 93.8) and 73.4% (64.4 - 82.4) at two and 30 weeks post-vaccination, respectively. Protection conferred by hybrid immunity was more durable than that from either vaccination or prior infection alone, but that protection against Omicron reinfection was only 36.2% (17.0 - 55.3) at 30 weeks following vaccination. Individuals with hybrid immunity had 83.4% protection (71.5 – 95.2) following booster doses declining to 48.3% (-21.5 – 100.0) after 30 weeks.
+
+## Interpretation
+Our results suggest that timely deployment of pre-existing boosters can greatly mitigate seasonal COVID outbreaks even in populations with prior infection and vaccination.
+
+## Funding
+Centers for Disease Control and Prevention (NU38OT000297-03)
+<!-- It is a grant from Centers for Disease Control and Prevention (NU38OT000297-03) through their cooperative agreement with the Council of State and Territorial Epidemiologists -->
+
+<!-- # Research in Context -->
+
+<!-- ## Evidence before this study -->
+<!-- We searched google scholar with the key words "waning", "effectiveness", "covid", and "systematic review". Prior systematic reviews have found that primary vaccination, booster doses and prior infection provide protection against SARS-CoV-2 infection -->
+<!-- and COVID-19 disease. They also found that this protection wanes over time, but that -->
+<!-- protection against severe infection is more durable. Finally they found that vaccine-induced immunity was markedly lower against Omicron variants than Pre-Omicron variants. -->
+
+<!-- ## Added value of this study -->
+<!-- Our analysis extends those of previous meta-analyses due to the inclusion of studies up to January 1st, 2023, and a comprehensive approach to analysing the impact of prior infection with either pre-Omicron or Omicron strain on the durability of vaccine-induced immunity. -->
+<!-- We find that 1) booster doses alone improve the strength but not the durability of immunity to Omicron variants, but that 2) prior infection increased the durability of vaccine-induced and booster-induced immunity over time to Omicron variants. -->
+
+<!-- ## Implications of all available evidence -->
+<!-- Although mRNA-based vaccines provided strong initial protection against pre-Omicron variants, this protection gradually waned over time and dropped sharply with the emergence of the Omicron strain. The durability of this protection was improved by additional doses and prior infections, although it continued to wane. Therefore, regular boosting can not only mitigate annual COVID-19 waves but also reduce the danger imposed by a new strain with similar escape characteristics to Omicron. -->
+
+# Main Text
+
+## Introduction
+Following the approval of the first COVID-19 mRNA vaccines in late 2020, an unprecedented vaccination campaign took place worldwide. In the US, 82.5% of the adult population had received at least one dose by January 2024 though uptake varied by region.[@covidvaxview] The mRNA vaccines used in the majority of these vaccinations proved to be highly efficacacious against infection and disease caused by ancestral strains and subsequently emerging variants of concern such as Alpha, Beta, Gamma, and Delta. [@meggiolaro2022effectiveness; @harder2021effectiveness; @xu2023real; @petravs2022risk] However, the emergence of the Omicron strain and its subvariants in late 2021 demonstrated that vaccine-induced immunity wanes over time and is not always robust to strain replacement.[@feikin2022duration; @meggiolaro2022omicron; @zeng2022effectiveness; @sabu2022effectiveness; @higdon2022systematic; @mohammed2023systematic; @wu2023long; @petravs2024understanding] \markup{Moreover, uptake of booster doses has been much lower than primary vaccination with only 22.6% of US adults receiving a 2024-2025 COVID-19 vaccine as of February 1st, 2025.}[@covidvaxview]
+
+Projecting ongoing morbidity and mortality due to SARS-CoV-2 requires reliable time-varying estimates of reductions in susceptibility to infection, symptomatic disease, and severe disease following vaccination or infection. [@basta2008estimating; @antia2021transition]
+Mathematical modeling has demonstrated that the interplay between different types of immunity may strongly impact population-level reduction of SARS CoV-2 transmission due to vaccination programs even when the overall reduction of symptomatic infections is roughly the same. [@swan2021covid] 
+\markup{In this study we analyze effectiveness ($E$) against three different outcomes: infection, symptomatic disease, and severe disease (i.e. infections that lead to hospitalization and/or death).}
+
+Previous meta-analyses have found that all three forms of immunity are 1) augmented by vaccination, including booster vaccines, as well as prior infection, and 2) wane over time with reduction of the risk of severe disease ($E_M$) being the most durable, but that 3) vaccine-induced immunity was markedly lower against Omicron variants than pre-Omicron variants. [@bobrovitz2023protective; @stein2023past; @wu2023long; @mohammed2023systematic; @feikin2022duration; @ssentongo2022sars; @petravs2022risk; @xu2023real; @petravs2024understanding; @nealon2024reported]
+
+In this meta-regression, we aim to update the current knowledge of naturally-acquired, mRNA vaccine-induced, and hybrid immunity, by including studies through December 2022. Using a multi-level meta-regression approach, we investigate the impact of infecting strain, vaccination status, prior infection, and time since immune conferring event on $E_S$, $E_D$ and $E_M$. In addition to reproducing the findings from previous meta-analyses with an expanded data set, we also analyze 1) the relative-durability of vaccine-induced, booster-induced, naturally acquired, and hybrid immunity and 2) the impact of prior infection on booster-dose effectiveness.
+
+## Methods
+
+### Search and Inclusion Criteria
+
+We conducted a literature search in PubMed, medRxiv and bioRxiv for manuscripts published or posted January 1, 2020 - January 1, 2023 using the search query ("SARS–CoV-2" or "COVID-19") AND ("BNT162b2" or "mRNA-1273") AND ("vaccine efficacy" OR "vaccine effectiveness") AND ("waning" or "wane"). Manuscripts were screened for estimates of at least one of $E_S$, $E_D$, or $E_M$. We excluded studies which pooled mRNA vaccination with other types of vaccination or had a study population of less 1000 individuals. When available, we replaced pre-prints with subsequently peer-reviewed studies published prior to January 1, 2024. Reviews and modeling-only studies were also excluded from our analysis. Of the 828 studies reviewed, 123 matched the criteria and were included in the final analysis (Figure \@ref(fig:study-flowchart)A and see Supplementary Table S1 for reasons for exclusion).
+ 
+Two authors (MM and LA) independently extracted point estimates and accompanying 95% CI for vaccine effectiveness for each time point at or after complete coverage was reached; generally defined as two weeks post second mRNA vaccine dose or one week post booster mRNA vaccine dose. For each outcome, we only recorded estimates with the narrowest available non-overlapping ranges for time since immune conferring event. Hazard ratios ($E$ = 1 - HR) and odds ratio ($E$ = 1 - OR) were converted to efficacies. From the 123 studies we recorded 1895 distinct estimates of $E_S$, $E_D$, and $E_M$, of which 1741 were used for analysis (Figure \@ref(fig:study-flowchart)B, Supplementary Tables S1 and S2). These estimates are displayed graphically using ggplot and included in Supplementary Table S2. We categorized each estimate according to vaccination status of the participants, the infecting strain, the timing of any prior infection, the minimum time since the immune conferring event, the age group of participants, and the study methodology.
+Vaccination status was defined as either 1) "None" or unvaccinated, 2) "Primary" vaccination corresponding to having exactly 2 doses of the mRNA vaccines BNT162b2 or mRNA-1273, or 3) "Boosted" with 3+ doses of an mRNA vaccine) (Supplementary Table S3).
+We dichotomized infecting strains into either "Pre-Omicron" comprising ancestral, Alpha, Beta, and Delta strains or "Omicron" comprising Omicron and sub variants BA.1, BA.2, BA.2.75, BA.4, and BA.5. When applicable, we also dichotomized participants' prior infections into "Pre-Omicron" and "Omicron" based on the window of time during which such an infection could have occurred. Any infection that could not have occurred after Dec 1st, 2021 was designated "Pre - Omicron" whereas all other infections were considered "Omicron" for our analysis. Publication bias was assessed by test of funnel plot asymmetry (Supplementary Figures S1-2 and Table S4).[@egger1997bias]
+
+The time since most recent vaccination dose, or in the case of natural immunity, time since prior infection, was reported over either closed or open time intervals. In all our analysis we defined $t$ to be the lower bound for all time intervals. 
+
+
+
+```{r study-flowchart, fig.cap="Study inclusion flowchart"}
+knitr::include_graphics("Figures/Fig_1.jpg")
+```
+
+\newpage
+
+
+
+\floatbarrier
+### Data Analysis
+\markup{In this analysis, we consider the following three estimands:}
+
+\markup{1. $E_S$: The percent reduction in the rate of newly acquired SARS-CoV-2 infections among \markup{individuals 18-64} with vaccine-induced and/or infection-induced immunity relative to those with no pre-existing immunity (the naive population).
+2. $E_D$: The percent reduction in the rate of symptomatic COVID-19 disease among \markup{individuals 18-64} with vaccine-induced and/or infection-induced immunity relative to the naive population. 
+3. $E_M$: The percent reduction in the rate of severe COVID-19 disease among \markup{individuals 18-64} with vaccine-induced and/or infection-induced relative to the naive population. \markup{Severe in this context means an infection leading to hospitalization and/or death.}}
+
+To quantify the waning of $E_S$, $E_D$ and $E_M$, we fit a series of mixed-effects linear models to the data, each including different covariates, $\mathbf{X}$, using a different subset of the data, and targeting different outcomes (Table \@ref(tab:Model-Table)).[@van2015meta] Each model uses a multilevel structure in which the estimate $i$ in study $j$, $E_{ij}$, potentially depends on 1) global, covariate-dependent estimates of initial immunity, $\beta_0 \mathbf{X}_{ij}$, and linear rate of waning, $\beta_1\mathbf{X}_{ij}$, 2) corresponding study-level and estimates-level effects on intercept, $(\mathbf{u}_{j, 0} + \mathbf{v}_{ij,0})\mathbf{X}_{ij}$ and slope, $u_{j, 1} + v_{ij,1}$ and 3) sampling effects $\epsilon_{ij}\sim\mathcal{N}(0, \sigma^2_{r_{ij}})$. The estimate-level random effects, $\epsilon_{ij}$ are also normally distributed with a variance $\sigma_{ij}$ computed from the width of the corresponding estimate's confidence interval. \markup{We also include an population-specific term $\mathbf{\beta}_a \mathbf{A}_{ij}$ where $A_{ij}$ is the population in which the estimate is made. The adult population (ages 18-64) is the default.}  The generic model is given by
+ 
+\begin{align}
+E_{ij} &= \mathbf{\beta}_a \mathbf{A}_{ij} + (\mathbf{\beta}_0 +\mathbf{u}_{j, 0} + \mathbf{v}_{ij, 0}) \mathbf{X}_{ij} +
++\left(\mathbf{\beta}_1\mathbf{X}_{ij}  + u_{j, 1}  + v_{ij, 1}\right)t_{ij} +
+\epsilon_{ij}\\
+\begin{pmatrix}
+\mathbf{u}_{0,j}\\u_{1,j}\\
+\end{pmatrix}&\sim \mathcal{N}(0, \Sigma_u)\qquad
+\begin{pmatrix}
+\mathbf{v}_{0,ij}\\v_{1,ij}
+\end{pmatrix}\sim \mathcal{N}(0, \Sigma_v) \qquad
+\epsilon_{ij} \sim \mathcal{N}(0, \sigma^2_{ij})
+\end{align}
+
+<!-- \begin{align} -->
+<!-- E_{ij} &= \mathbf{\beta}_0 + t_{ij}\mathbf{X}_{ij} + u_{j, 0} + v_{ij, 0} + -->
+<!-- \left(\mathbf{\beta}_1\mathbf{X}_{ij}  + u_{j, 1}  + v_{ij, 1}\right)t_{ij} +  -->
+<!-- +\left(\mathbf{\beta}_2  + u_{j, 2}  + v_{ij, 2}\right)X_{ij} -->
+<!-- \epsilon_{ij}\\ -->
+<!-- \begin{pmatrix} -->
+<!-- u_{0,j}\\u_{1,j}\\u_{2,j} -->
+<!-- \end{pmatrix}&\sim \mathcal{N}(0, \Sigma_u)\\ -->
+<!-- \Sigma_u &= -->
+<!-- \begin{pmatrix} -->
+<!-- \tau_{u, 0}^2 & \rho_{u, 10} \tau_{u, 0} \tau_{u, 1}  & \rho_{u, 20} \tau_{u, 0} \tau_{u, 2} \\ -->
+<!-- \rho_{u, 10} \tau_{u, 0} \tau_{u, 1} & \tau_{u, 1}^2 & \rho_{u, 21} \tau_{u, 1} \tau_{u, 2}\\ -->
+<!-- \rho_{u, 20} \tau_{u, 0} \tau_{u, 2} & \rho_{u, 21} \tau_{u, 1} \tau_{u, 2} & \tau_{u, 2}^2 -->
+<!-- \end{pmatrix}\\ -->
+<!-- \begin{pmatrix} -->
+<!-- v_{0,j}\\v_{1,j}\\v_{2,j} -->
+<!-- \end{pmatrix}&\sim \mathcal{N}(0, \Sigma_v)\\ -->
+<!-- \Sigma_v &= -->
+<!-- \begin{pmatrix} -->
+<!-- \tau_{v, 0}^2 & \rho_{v, 10} \tau_{v, 0} \tau_{v, 1}  & \rho_{v, 20} \tau_{v, 0} \tau_{u, 2} \\ -->
+<!-- \rho_{v, 10} \tau_{v, 0} \tau_{v, 1} & \tau_{v, 1}^2 & \rho_{v, 21} \tau_{v, 1} \tau_{u, 2}\\ -->
+<!-- \rho_{v, 20} \tau_{v, 0} \tau_{v, 2} & \rho_{v, 21} \tau_{v, 1} \tau_{v, 2} & \tau_{u, 2}^2 -->
+<!-- \end{pmatrix}\\ -->
+<!-- \epsilon_{ij} &\sim \mathcal{N}(0, \sigma^2_{ij}) -->
+<!-- \end{align} -->
+
+We also considered model forms with one or more of the following simplifications:
+
+1. Either study-level or estimate-level random effects ignored, i.e. $\Sigma_u=0$ or $\Sigma_v=0$, but not both
+2. No interaction between random effects on intercept and covariates, i.e. $\mathbf{u}_{j, 0}\mathbf{X}_{ij} = u_{j,0}$ and $\mathbf{u}_{j, 0}\mathbf{X}_{ij} = u_{j,0}$, or with the additional constraint of no random effects on slope, i.e. $u_{j,1} = v_{j,1}=0$.
+3. No population-dependence, i.e. $\beta_a=0$.
+
+For each model and each stratum, we selected the best-fit model based on the Bayesian Information Criterion (BIC). For example in for Model 1, $E_S$ and $E_D$ were fit with the full model, whereas for $E_M$ we set $\mathbf{u}_{j, 0}\mathbf{X}_{ij} = u_{j,0}$ and $\mathbf{u}_{j, 0}\mathbf{X}_{ij} = u_{j,0}$ as it
+improved BIC. Significance of the impact of covariates and time since immune conferring event on outcome were calculated via two-sided t-test. All models were implemented in `r R.version.string` using the metafor package. Results of all models are given in Supplementary Tables S5-S23.
+
+\markup{As these model are intended to be descriptive rather than project future effectiveness, we restrict our analyses to the time frame with the gratest amount of data. For models 1-4, our initial and waned immunity refers to protection at two and 26 weeks post ICE, respectively. For model 5, waned immunity refers to protection at 16 weeks post ICE, owing to a relative lack of data outside of that time frame. To test for the robustness of our results to model assumptions we also considered a log-transformed version of our model replacing $E$ with $\log(1 - E)$. These results are provided in the supplementary materials.}
+```{r Model-Table}
+
+models = c("Model 1", "Model 2", "Model 3", "Model 4", "Model 5")
+covariates = c("Strain (Omicron vs pre-Omicron)",
+               "Number of doses (3+ vs 2)",
+               "Type of immunity (Primary vaccination, Prior Infection, or Primary vaccination + Prior Infection)",
+               paste0("Type of immunity (Primary vaccination, Prior Infection pre-Omicron, Prior Infection with Omicron, ",
+                      "Primary vaccination + Prior Infection pre-Omicron, or Primary vaccination + Prior Infection with Omicron"),
+               "Prior Infection (None vs Any)")
+
+stratification = c("Outcome", "Outcome and Strain", "Outcome and Strain", "Outcome", "Outcome and Strain")
+
+purpose = c("Evaluate impact of infecting strain",
+            "Evaluate impact of booster doses",
+            "Compare durability of natural and vaccine derived immunity",
+            "Evaluate impact of prior infecting strain on durability of natural immunity",
+            "Evaluate impact of natural immunity on individuals with booster doses")
+subset = sprintf("%s (%i, %i)", c("Two or more mRNA Vaccine Doses", "No prior infection", "Two or fewer mRNA Vaccine Doses (i.e. no booster doses)","Two or fewer mRNA Vaccine Doses (i.e. no booster doses)", "Three or more mRNA Vaccine Doses"), MODEL_SUMMARY$M, MODEL_SUMMARY$N)
+
+
+Model_Table = data.table(
+  Model = models,
+  Purpose = purpose,
+  Covariates = covariates,
+  Stratification = stratification,
+  Subset = subset
+)
+
+flextable(Model_Table)%>%
+  width(j=seq(5), c(0.7, 1.75, 2.5, 1, 1.5))%>%
+  set_caption("Meta-regression model structure and purpose. Numbers in parentheses indicate the number of studies and estimates used in each analysis.")
+```
+
+\floatbarrier
+
+\newpage
+
+
+## Results
+### Vaccine protection against infection and symptomatic disease, but not severe disease, were much lower against the Omicron variants
+We found a consensus in the literature that vaccine effectiveness against infection, symptomatic disease, and severe disease wanes over time both due to an increase in time since the most recent vaccine dose and due to the replacement of the circulating strain by the Omicron strain or its subvariants. The magnitude of the loss of this immunity varied by type of protection and the dominant circulating strain at the time of vaccination (Figure \@ref(fig:Strain-Figure)). For each of the vaccine effectiveness measures ($E_S$, $E_D$, and $E_M$), the predicted values for protection two weeks after completion of the primary series was lower for Omicron than for pre-Omicron variants (Table \@ref(tab:Strain-Table)). Initial vaccine protection against infection ($E_S$, Figure \@ref(fig:Strain-Figure)A) against pre-Omicron variants was `r rtable_strain_best_only[TYPE == "S" & STRAIN == "Pre-Omicron"]$print.value.2` compared to `r rtable_strain_best_only[TYPE == "S" & STRAIN == "Omicron"]$print.value.2` against Omicron variants. After thirty weeks, $E_S$ decreased to `r rtable_strain_best_only[TYPE == "S" & STRAIN == "Pre-Omicron"]$print.value.30` and `r rtable_strain_best_only[TYPE == "S" & STRAIN == "Omicron"]$print.value.30`, against pre-Omicron and Omicron variants, respectively. Estimates of protection against symptomatic disease ($E_D$, Figure \@ref(fig:Strain-Figure)B) were quite similar: at two weeks post-second dose it was `r rtable_strain_best_only[TYPE == "D" & STRAIN == "Pre-Omicron"]$print.value.2` and `r rtable_strain_best_only[TYPE == "D" & STRAIN == "Omicron"]$print.value.2` against pre-Omicron and Omicron variants respectively and after thirty weeks was `r rtable_strain_best_only[TYPE == "D" & STRAIN == "Pre-Omicron"]$print.value.30` and `r rtable_strain_best_only[TYPE == "D" & STRAIN == "Omicron"]$print.value.30` against pre-Omicron and Omicron variants, respectively.
+
+Vaccine protection against severe outcomes ($E_M$, Figure \@ref(fig:Strain-Figure)C) was both more durable over time and robust to the immune evasion of omicron. At two weeks post vaccination $E_M$ was `r rtable_strain_best_only[TYPE == "M" & STRAIN == "Pre-Omicron"]$print.value.2` against pre-Omicron variants and `r rtable_strain_best_only[TYPE == "M" & STRAIN == "Omicron"]$print.value.2` against Omicron variants. After 30 weeks, $E_M$ decreased to `r rtable_strain_best_only[TYPE == "M" & STRAIN == "Pre-Omicron"]$print.value.30` and `r rtable_strain_best_only[TYPE == "M" & STRAIN == "Omicron"]$print.value.3` against pre-Omicron and Omicron variants, respectively.
+
+
+```{r Strain-Figure, fig.width = 14, fig.height = 9, fig.cap = "Protection against infection, symptomatic disease, and severe disease by infecting strain and time since most recent vaccination relative to an immune-naive population. Size of each dot is proportional to weighting in the analysis.", dev = "tiff", dpi = 500, out.width = "5.83in", out.height = "3.75in"}
+#library(viridis)
+
+fig_one_function = function(x, type = "All"){
+  
+  RFIG_STRAIN_DATA[BEST_FIT_STRAIN, on=.(TYPE, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)
+                          ][TYPE==x & OUTPUT == "Predicted" & version == "linear"
+                            & STUDY_TYPE_SIMPLE == type]->data.temp
+  ggplot(data.temp,
+       aes(x = MIN_TIME, y = VALUE, fill = STRAIN, color = STRAIN, 
+           size = WEIGHT)) +
+  geom_point(shape = 21, color = "black",alpha = 0.3)  +
+  scale_fill_manual("Strain",values=c(strain_colors2[4],strain_colors2[1]),
+                    labels = c("Pre-Omicron","Omicron")) + 
+    scale_color_manual("Strain",values=c(strain_colors2[4],strain_colors2[1]),
+                       labels = c("Pre-Omicron","Omicron")) +
+    coord_cartesian(xlim = c(0, 55), ylim = c(0, 110)) +
+  theme_minimal()+
+    scale_y_continuous(breaks = c(0, 25, 50, 75, 100)) +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(text = element_text(size = 20), legend.text = element_text(size = 20)) +
+  geom_line(aes(y = pred), lwd = 1, data = data.temp[AGE_GROUP == "Adult" | is.na(AGE_ADJUST)]) +
+  geom_line(aes(y = ci.lb), lwd = 0.5, data = data.temp[AGE_GROUP == "Adult" | is.na(AGE_ADJUST)], linetype = "dashed") +
+  geom_line(aes(y = ci.ub), lwd = 0.5, data = data.temp[AGE_GROUP == "Adult" | is.na(AGE_ADJUST)], linetype = "dashed") +
+    geom_ribbon(aes(ymin = ci.lb, ymax = ci.ub, x = MIN_TIME), 
+                data = data.temp[AGE_GROUP == "Adult" | is.na(AGE_ADJUST)], color = NA, alpha = 0.3, size = 1) +
+  guides(size = "none")+
+  labs(x = "Minimum number of weeks since vaccination", y="Efficacy")
+}
+
+RFIG_STRAIN_list = lapply(c("S", "D", "M"),fig_one_function)
+
+# grid.arrange(RFIG_STRAIN_list[[1]] + labs(title = expression("Infection"~(E[S])))
+#              +annotate("label", x = 0, y = 107, size = 6, label = "A"),
+#              arrangeGrob( 
+#                RFIG_STRAIN_list[[2]] + theme(legend.position = "none") + 
+#                  labs(title = expression("Symptomatic Disease"~(E[D])))+
+#                  annotate("label", x = 0, y = 107, size = 6, label = "B"), 
+#                RFIG_STRAIN_list[[3]] + theme(legend.position = "none") + 
+#                  labs(title = expression("Severe Disease"~(E[M])))+
+#                  annotate("label", x = 0, y = 107, size = 6, label = "C"), 
+#                ncol=2), 
+#              nrow = 2)
+
+ggsave("Figures/Fig_2.tiff",plot =grid.arrange(RFIG_STRAIN_list[[1]] + labs(title = expression("Infection"~(E[S])))
+             +annotate("label", x = 0, y = 107, size = 6, label = "A"),
+             arrangeGrob( 
+               RFIG_STRAIN_list[[2]] + theme(legend.position = "none") + 
+                 labs(title = expression("Symptomatic Disease"~(E[D])))+
+                 annotate("label", x = 0, y = 107, size = 6, label = "B"), 
+               RFIG_STRAIN_list[[3]] + theme(legend.position = "none") + 
+                 labs(title = expression("Severe Disease"~(E[M])))+
+                 annotate("label", x = 0, y = 107, size = 6, label = "C"), 
+               ncol=2), 
+             nrow = 2) , dev = "tiff", dpi = 500)
+```
+
+\newpage
+
+```{r Strain-Table}
+caption.strain = "Unadjusted estimates of vaccine effectiveness by strain at two and thirty weeks since most recent dose and the change over that time frame with 95% confidence intervals. Analysis was stratified by clinical outcome. Significance of the impact of strain replacement and of time since vaccination was evaluated with a two-sided t-test. Listed p-values indicate the significance of the strain replacement. Significance of the change over time is indicated by *(p<.05), **(p<.01), and ***(p<.001)."
+
+
+flextable(rtable_strain_best_only[version == "log" & STUDY_TYPE_SIMPLE == "All"], col_keys = c("OUTCOME", "STRAIN", "print.value.2", "print.value.26", "print.value.sl"))%>%merge_v(j=13)%>%set_header_labels(values = c("Outcome", "Strain", "Initial (Week 2)", "Waned (Week 26)", "Change"))%>%autofit()%>%hline(i = c(3, 6))%>%set_caption(caption.strain)%>%fix_border_issues()%>%fit_to_width(7.5)
+```
+
+
+
+
+
+### Booster doses provide longer-lasting protection against pre-Omicron variants but not Omicron variants
+Booster doses of mRNA vaccines restored $E_S$, $E_D$, and $E_M$ against pre-Omicron variants to similar levels as following primary vaccination (Figure \@ref(fig:Booster-Figure)A-C and Table \@ref(tab:Booster-Table)). $E_D$ against pre-Omicron strains was more durable following booster doses than primary vaccination. Between two weeks and thirty week post-booster dose, protection dropped by only `r rtable_booster_bestfit_only[TYPE == "D" & STRAIN == "Pre-Omicron" & Boosted == TRUE]$print.value.sl` percentage points compared to `r rtable_booster_bestfit_only[TYPE == "D" & STRAIN == "Pre-Omicron" & Boosted == FALSE]$print.value.sl` percentage points following primary series alone (p = `r rtable_booster_bestfit_only[TYPE == "D" & STRAIN == "Pre-Omicron" & Boosted == "p-value"]$print.value.sl`) (Figure \@ref(fig:Booster-Figure)B). A similar trend was observed for $E_S$ but the effect was not significant (Figure \@ref(fig:Booster-Figure)A).
+
+Booster doses provided better initial protection against Omicron variants than primary vaccination alone (Figure \@ref(fig:Booster-Figure)D-F).
+For each outcome, protection was greater following booster doses than primary vaccination at two weeks after the last dose: $E_S$ was `r rtable_booster_bestfit_only[TYPE == "S" & STRAIN == "Omicron" & Boosted == TRUE]$print.value.2` following a booster vs 
+`r rtable_booster_bestfit_only[TYPE == "S" & STRAIN == "Omicron" & Boosted == FALSE]$print.value.2` following primary vaccination , $E_D$ was `r rtable_booster_bestfit_only[TYPE == "D" & STRAIN == "Omicron" & Boosted == TRUE]$print.value.2` vs 
+`r rtable_booster_bestfit_only[TYPE == "D" & STRAIN == "Omicron" & Boosted == FALSE]$print.value.2`, and $E_M$ was `r rtable_booster_bestfit_only[TYPE == "M" & STRAIN == "Omicron" & Boosted == TRUE]$print.value.2` vs 
+`r rtable_booster_bestfit_only[TYPE == "M" & STRAIN == "Omicron" & Boosted == FALSE]$print.value.2`. By thirty weeks post-boosting $E_S$ and $E_D$ had declined substantially to `r rtable_booster_bestfit_only[TYPE == "S" & STRAIN == "Omicron" & Boosted == TRUE]$print.value.30` and `r rtable_booster_bestfit_only[TYPE == "D" & STRAIN == "Omicron" & Boosted == TRUE]$print.value.30`, respectively. Both these boosting efficacies were greater but not significantly than the corresponding efficacies following primary vaccination alone. $E_M$ also declined after thirty weeks but remained high at `r rtable_booster_bestfit_only[TYPE == "M" & STRAIN == "Omicron" & Boosted == TRUE]$print.value.30`, similar to the protection following primary vaccination `r rtable_booster_bestfit_only[TYPE == "M" & STRAIN == "Omicron" & Boosted == FALSE]$print.value.30`.
+
+
+
+```{r Booster-Figure, echo=FALSE, fig.width = 12, fig.height = 7,fig.cap = "Protection against infection, symptomatic disease, and severe disease by booster status and time since most recent vaccination relative to an immune-naive population. Top and bottom rows show protection against pre-Omicron and Omicron variants, respectively. Size of each dot is proportional to weighting in the analysis.", dev = "tiff", dpi = 500, out.width = "5.83in", out.height = "3.4in"}
+
+dat_text = data.table(
+    text = LETTERS[1:6],
+    TYPE2 = factor(rep(c("Infection~(E[S])",
+                  "Symptomatic~Disease~(E[D])",
+                  "Severe~Disease~(E[M])"),2),
+                  levels = c("Infection~(E[S])",
+                             "Symptomatic~Disease~(E[D])",
+                             "Severe~Disease~(E[M])")),
+    STRAIN = factor(rep(c("Pre-Omicron", "Omicron"), each = 3),
+                    levels = c("Pre-Omicron", "Omicron"))
+)
+RFIG_BOOSTER_DATA_mod[OUTPUT == "Predicted",IMMSTRAIN:=paste0(Boosted, STRAIN),]
+RFIG_BOOSTER_DATA_mod[OUTPUT == "Predicted",TYPESTRAIN:=paste0(TYPE, STRAIN),]
+RFIG_BOOSTER_DATA_mod[,TYPE:=factor(TYPE, levels = c("S", "D", "M")),]
+RFIG_BOOSTER_DATA_mod[TYPE == "S",TYPE2:="Infection~(E[S])",]
+RFIG_BOOSTER_DATA_mod[TYPE == "D",TYPE2:="Symptomatic~Disease~(E[D])",]
+RFIG_BOOSTER_DATA_mod[TYPE == "M",TYPE2:="Severe~Disease~(E[M])",]
+RFIG_BOOSTER_DATA_mod[,
+                  TYPE2:=factor(TYPE2, 
+                                levels = c("Infection~(E[S])", 
+                                           "Symptomatic~Disease~(E[D])", 
+                                           "Severe~Disease~(E[M])")),]
+RFIG_BOOSTER_DATA_mod[Boosted == F, DOSE:= "Primary"]
+RFIG_BOOSTER_DATA_mod[Boosted == T, DOSE:= "Primary + Booster"]
+RFIG_BOOSTER_DATA_mod[,ci.ub_truncated:=pmin(100, ci.ub),]
+
+RFIG_BOOSTER_DATA_mod[BEST_FIT_BOOSTER, on = .(TYPE, STRAIN, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)
+                             ][OUTPUT == "Predicted" & 
+                                 version == "linear" &
+                                 STUDY_TYPE_SIMPLE == "All"]->data.temp
+
+# 
+# ggplot(data.temp,
+#        aes(x = MIN_TIME, y = -VALUE, fill = DOSE, color = DOSE, size = WEIGHT * 2)) +
+#   #scale_size(range = c(.1, 10)) +
+#   geom_point(shape = 21, color = "black", alpha = 0.3)  +
+#   #scale_color_manual("Immunity/Strain",
+#   #                   values=c(dose_colors2),
+#   #                   labels = c("Booster/Omicron",
+#   #                              "Primary/Omicron",
+#   #                              "Booster/Pre-Omicron",
+#   #                              "Primary/Pre-Omicron"), aesthetics = c("fill","color")) +
+#   coord_cartesian(ylim = c(0,-log(1 - 0.98)), xlim = c(0,40)) +
+#   theme_minimal() +
+#   scale_y_continuous(labels = velist, breaks = -log(1 - velist/100)) +
+#   theme(plot.title = element_text(hjust = 0.5),
+#         legend.text = element_text(size = 20),
+#         legend.position = "bottom") +
+#   theme(text = element_text(size = 20)) +
+#   geom_line(aes(y = -pred), data.temp[AGE_GROUP == "Adult" | is.na(AGE_ADJUST)], lwd = 1) +
+#   geom_line(aes(y = -ci.lb), data.temp[AGE_GROUP == "Adult" | is.na(AGE_ADJUST)], lwd = 0.5, linetype = "dashed") +
+#   geom_line(aes(y = -ci.ub_truncated), data.temp[AGE_GROUP == "Adult" | is.na(AGE_ADJUST)], 
+#             lwd = 0.5, linetype = "dashed") +
+#   geom_ribbon(aes(ymin = -ci.lb, ymax = -ci.ub_truncated, x = MIN_TIME), 
+#               data.temp[AGE_GROUP == "Adult" | is.na(AGE_ADJUST)], color = NA, alpha = 0.3, size = 1) +
+#   guides(size = "none")+
+#   labs(x = "Minimum number of weeks since vaccination", y="Efficacy", col = "Dose", fill = "Dose") + 
+#   facet_grid(STRAIN~TYPE2,
+#              labeller = labeller(
+#                TYPE2 = label_parsed
+#              )) +
+#   geom_label(aes(label = text),
+#              x = 0, y = 107, size = 6, 
+#              color = "black", fill = "white", 
+#              data = dat_text)
+
+
+
+# 
+ggplot(data.temp,
+       aes(x = MIN_TIME, y = VALUE, fill = DOSE, color = DOSE, size = WEIGHT * 2)) +
+  #scale_size(range = c(.1, 10)) +
+  geom_point(shape = 21, color = "black", alpha = 0.3)  +
+  #scale_color_manual("Immunity/Strain",
+  #                   values=c(dose_colors2),
+  #                   labels = c("Booster/Omicron",
+  #                              "Primary/Omicron",
+  #                              "Booster/Pre-Omicron",
+  #                              "Primary/Pre-Omicron"), aesthetics = c("fill","color")) +
+  coord_cartesian(ylim = c(0,110), xlim = c(0,40)) +
+  theme_minimal() +
+  scale_y_continuous(breaks = c(0, 25, 50, 75, 100)) +
+  theme(plot.title = element_text(hjust = 0.5),
+        legend.text = element_text(size = 20),
+        legend.position = "bottom") +
+  theme(text = element_text(size = 20)) +
+  geom_line(aes(y = pred), data = data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], lwd = 1) +
+  geom_line(aes(y = ci.lb), data = data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], lwd = 0.5, linetype = "dashed") +
+  geom_line(aes(y = ci.ub_truncated), data = data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], lwd = 0.5, linetype = "dashed") +
+  geom_ribbon(aes(ymin = ci.lb, ymax = ci.ub_truncated, x = MIN_TIME), data = data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], color = NA, alpha = 0.3, size = 1) +
+  guides(size = "none")+
+  labs(x = "Minimum number of weeks since vaccination", y="Efficacy", col = "Dose", fill = "Dose") +
+  facet_grid(STRAIN~TYPE2,
+             labeller = labeller(
+               TYPE2 = label_parsed
+             )) +
+  geom_label(aes(label = text),
+             x = 0, y = 107, size = 6,
+             color = "black", fill = "white",
+             data = dat_text)
+
+ggsave("Figures/Fig_3.tiff", dev = "tiff", dpi = 1000)
+#facet_wrap(~TYPESTRAIN, dir = "v",ncol = 3,labeller = 
+  #             labeller(TYPESTRAIN = c(
+  #               "DPre-Omicron" = "Symptomatic Disease - Pre-Omicron",
+  #                                     "DOmicron" = "Symptomatic Disease - Omicron",
+  #               "SPre-Omicron" = "Infection - Pre-Omicron",
+  #                                     "SOmicron" = "Infection - Omicron",
+  #                                     "MPre-Omicron" = "Severe Disease - Pre-Omicron",
+  #                                     "MOmicron" = "Severe Disease - Omicron"
+  #                                     )))
+#facet_wrap(~TYPESTRAIN, dir = "v",ncol = 3,labeller = 
+  #             labeller(TYPESTRAIN = c(
+  #               "DPre-Omicron" = "Symptomatic Disease - Pre-Omicron",
+  #                                     "DOmicron" = "Symptomatic Disease - Omicron",
+  #               "SPre-Omicron" = "Infection - Pre-Omicron",
+  #                                     "SOmicron" = "Infection - Omicron",
+  #                                     "MPre-Omicron" = "Severe Disease - Pre-Omicron",
+  #                                     "MOmicron" = "Severe Disease - Omicron"
+  #                                     )))
+```
+
+\newpage
+```{r Booster-Table}
+caption.booster = "Unadjusted estimates of vaccine effectiveness by booster status at two and thirty weeks since most recent dose and the change over that time frame with 95% confidence intervals. Analysis was stratified by clinical outcome and infecting strain. Significance of the impact of strain replacement and of time since vaccination was evaluated with a two-sided t-test. Listed p-values indicate the significance of the strain replacement. Significance of the change over time is indicated by *(p<.05), **(p<.01), and ***(p<.001)."
+
+
+
+flextable(rtable_booster_bestfit_only[version == "linear" & STUDY_TYPE_SIMPLE == "All"], col_keys = c("OUTCOME", "STRAIN", "DOSE", "print.value.2", "print.value.26", "print.value.sl"))%>%merge_v(j=c(2, 14))%>%set_header_labels(values = c("Outcome", "Strain", "Dose", "Initial (Week 2)", "Waned (Week 26)", "Change"))%>%autofit()%>%hline(i = c(3, 6, 9, 12, 15))%>%set_caption(caption.booster)%>%fix_border_issues()%>%fit_to_width(7.5)
+```
+### Natural and hybrid immunity were more durable that vaccine-induced immunity
+Immunity was more durable following natural infection than vaccination alone (Figure \@ref(fig:Infection-Figure) and Table \@ref(tab:Infection-Table)). \markupInitial protection
+against pre-Omicron variants was similar following natural infection and vaccination whether the outcome was reinfection ($E_S$, Figure \@ref(fig:Infection-Figure)A), `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Pre-Omicron" & IMM == "I"]$print.value.2` vs  `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Pre-Omicron" & IMM == "V"]$print.value.2`, or
+symptomatic disease ($E_D$, Figure \@ref(fig:Infection-Figure)B), `r rtable_infection_bestfit_only[TYPE == "D" & STRAIN == "Pre-Omicron" & IMM == "I"]$print.value.2` vs  `r rtable_infection_bestfit_only[TYPE == "D" & STRAIN == "Pre-Omicron" & IMM == "V"]$print.value.2`.} However by thirty weeks after the immune conferring event, both $E_S$ and $E_D$ were significantly greater following natural infection than vaccination: `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Pre-Omicron" & IMM == "I"]$print.value.30` vs  `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Pre-Omicron" & IMM == "V"]$print.value.30`, and `r rtable_infection_bestfit_only[TYPE == "D" & STRAIN == "Pre-Omicron" & IMM == "I"]$print.value.30` vs  `r rtable_infection_bestfit_only[TYPE == "D" & STRAIN == "Pre-Omicron" & IMM == "V"]$print.value.30`, respectively.
+
+Natural immunity was also more durable following the strain replacement by Omicron (Figure \@ref(fig:Infection-Figure)C-D). $E_S$ against Omicron variants was significantly greater than vaccine-induced immunity at both two weeks, `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Omicron" & IMM == "I"]$print.value.2` vs  `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Omicron" & IMM == "V"]$print.value.2` , and thirty weeks, `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Omicron" & IMM == "I"]$print.value.30` vs  `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Omicron" & IMM == "V"]$print.value.30`. $E_D$ against Omicron variants was also significantly greater at thirty weeks following infection, `r rtable_infection_bestfit_only[TYPE == "D" & STRAIN == "Omicron" & IMM == "I"]$print.value.30`, than thirty weeks following vaccination,  `r rtable_infection_bestfit_only[TYPE == "D" & STRAIN == "Omicron" & IMM == "V"]$print.value.30`.
+
+Vaccine-induced immunity was more durable among those with prior infection (i.e among those with hybrid immunity) compared to those with no history of infection. $E_S$ against pre-Omicron variants was `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Pre-Omicron" & IMM == "H"]$print.value.2` at two weeks and remained at `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Pre-Omicron" & IMM == "H"]$print.value.30` at thirty weeks, significantly greater than in those with no prior infection. $E_S$ against Omicron variants was also higher in those with hybrid immunity than among those with no prior infection at both two weeks, `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Omicron" & IMM == "H"]$print.value.2` , and thirty weeks, `r rtable_infection_bestfit_only[TYPE == "S" & STRAIN == "Omicron" & IMM == "H"]$print.value.30`.
+
+
+```{r Infection-Figure, fig.width = 12, fig.height = 6, fig.cap = "Protection against infection and symptomatic disease by immune status and time since most recent immune conferring event relative to an immune-naive population. For individuals who received primary vaccination with prior infection time since immune conferring event refers to time since vaccination. Size of each dot is proportional to weighting in the analysis.", dev = "tiff", dpi = 500, out.width = "5.82in", out.height = "2.91in"}
+dat_text = data.table(
+    text = LETTERS[1:4],
+    TYPE2 = factor(rep(c("Infection~(E[S])",
+                  "Symptomatic~Disease~(E[D])"),2),
+                  levels = c("Infection~(E[S])",
+                             "Symptomatic~Disease~(E[D])",
+                             "Severe~Disease~(E[M])")),
+    STRAIN = factor(rep(c("Pre-Omicron", "Omicron"), each = 2),
+                    levels = c("Pre-Omicron", "Omicron"))
+)
+
+RFIG_INF_DATA[,TYPE:=factor(TYPE, levels = c("S", "D")),]
+RFIG_INF_DATA[TYPE == "S",TYPE2:="Infection~(E[S])",]
+RFIG_INF_DATA[TYPE == "D",TYPE2:="Symptomatic~Disease~(E[D])",]
+RFIG_INF_DATA[,ci.ub_truncated :=pmin(100, ci.ub),]
+
+RFIG_INF_DATA[BEST_FIT_INF, on = .(TYPE, STRAIN, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)
+                     ][OUTPUT == "Predicted" & version == "linear" & STUDY_TYPE_SIMPLE == "All"]->data.temp
+ggplot(data.temp,
+       aes(x = MIN_TIME, y = VALUE, fill = IMM, color = IMM, size = WEIGHT/2)) +
+  #scale_size(range = c(.1, 3)) +
+  geom_point(shape = 21, color = "black")  +
+  scale_color_manual("Immunity",
+                     values=c(dose_colors3),
+                     labels = c("Primary Series Only",
+                                "Prior Infection Only",
+                                "Primary Series + Prior Infection"
+                                ),
+                     aesthetics = c("fill","color")) +
+  coord_cartesian(ylim = c(0,110), xlim = c(0,40))+
+  theme_minimal()+
+  scale_y_continuous(breaks = c(0, 25, 50, 75, 100)) +
+  theme(plot.title = element_text(hjust = 0.5), 
+        legend.position = "bottom") +
+  theme(text = element_text(size = 20)) +
+  geom_line(aes(y = pred), data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], lwd = 1) +
+  geom_line(aes(y = ci.lb), data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], lwd = 0.5, linetype = "dashed") +
+  geom_line(aes(y = ci.ub_truncated), data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], lwd = 0.5, linetype = "dashed") +
+  geom_ribbon(aes(ymin = ci.lb, ymax = ci.ub_truncated, x = MIN_TIME), data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], color = NA, alpha = 0.3, size = 1) +
+  guides(size = "none")+
+  labs(x = "Minimum number of weeks since immune conferring event", y="Efficacy") + 
+  facet_grid(STRAIN~TYPE2,
+             labeller = labeller(
+               TYPE2 = label_parsed
+             )) +
+  geom_label(aes(label = text),
+             x = 0, y = 107, size = 6, 
+             color = "black", fill = "white", 
+             data = dat_text)
+
+ggsave("Figures/Fig_4.svg", dev = "svg")
+```
+
+\newpage
+```{r Infection-Table}
+
+caption.infection = "Unadjusted estimates of immune effectiveness by immune type at two and thirty weeks since most recent immune conferring event and the change over that time frame with 95% confidence intervals. Primary = Primary series only, Natural Imm. = Prior infection onlu, Hybrid = Prior Infection followed by Primary series. Analysis was stratified by infecting strain and clinical outcome. Significance of the impact of strain replacement and of time since vaccination was evaluated with a two-sided t-test. Listed p-values indicate the significance of the strain replacement. Significance of the change over time is indicated by *(p<.05), **(p<.01), and ***(p<.001). Natural Imm. and N.I. refer to infection-induced immunity, Pri. refers to primary vaccine-induced immunity, Hyb. refers to hybrid immunity."
+
+
+flextable(rtable_infection_bestfit_only[version == "linear" & STUDY_TYPE_SIMPLE == "All"], col_keys = c("OUTCOME","STRAIN", "IMMUNITY", "print.value.2", "print.value.26", "print.value.sl"))%>%merge_v(j=c(2,14))%>%set_header_labels(values = c("Outcome", "Infecting Strain", "Immunity", "Initial (Week 2)", "Waned (Week 26)", "Change"))%>%autofit()%>%hline(i = c(5, 10, 13, 18))%>%set_caption(caption.infection)%>%fix_border_issues()%>%fit_to_width(7.5)
+```
+
+The strength and durability of natural and hybrid immunity depended on the variant of the prior infection as well as time since most recent immune conferring event (Figure \@ref(fig:Infection-Figure-pstrain) and Supplementary Table
+S24). $E_S$ against Omicron variants were similar two weeks following either a "Pre - Omicron" infection or primary vaccination
+,`r rtable_infection_mod_bestfit_only[TYPE == "S" & IMMP == "IPre - Omicron"]$print.value.2` vs `r rtable_infection_mod_bestfit_only[TYPE == "S" & IMMP == "V"]$print.value.2`; though natural immunity was greater after thirty weeks,`r rtable_infection_mod_bestfit_only[TYPE == "S" & IMMP == "IPre - Omicron"]$print.value.30` vs `r rtable_infection_mod_bestfit_only[TYPE == "S" & IMMP == "V"]$print.value.30`. Hybrid immunity provided the most protection at both time points (Figure \@ref(fig:Infection-Figure-pstrain) A). A similar trend was observed in $E_D$: natural immunity from a pre-Omicron variant provided similar protection against Omicron variants as primary vaccination at two weeks,
+`r rtable_infection_mod_bestfit_only[TYPE == "D" & IMMP == "IPre - Omicron"]$print.value.2` vs `r rtable_infection_mod_bestfit_only[TYPE == "D" & IMMP == "V"]$print.value.2`,
+and this protection proved to be more robust at thirty weeks,`r rtable_infection_mod[TYPE == "D" & IMMP == "IPre - Omicron"]$print.value.30` vs `r rtable_infection_mod_bestfit_only[TYPE == "D" & IMMP == "V"]$print.value.30`. Prior infection with Omicron provided robust protection against subsequent reinfection with Omicron,`r rtable_infection_mod_bestfit_only[TYPE == "S" & IMMP == "IPost - Omicron"]$print.value.2`, and symptomatic disease,`r rtable_infection_mod_bestfit_only[TYPE == "D" & IMMP == "IPost - Omicron"]$print.value.2`, significantly greater than that conferred by primary vaccination  (Figure \@ref(fig:Infection-Figure-pstrain) C-D).
+
+
+
+
+```{r Infection-Figure-pstrain, fig.height = 6, fig.width = 12, fig.cap = "Protection against any Omicron infection and symptomatic disease by type of prior infection and time since most recent immune conferring event relative to an immune-naive population. For individuals who received primary vaccination with prior infection time since immune conferring event refers to time since vaccination. Size of each dot is proportional to weighting in the analysis.", dev = "tiff", dpi = 500, out.width = "5.82in", out.height = "2.91in"}
+dat_text = data.table(
+    text = LETTERS[1:4],
+    TYPE2 = factor(rep(c("Infection~(E[S])",
+                  "Symptomatic~Disease~(E[D])"),2),
+                  levels = c("Infection~(E[S])",
+                             "Symptomatic~Disease~(E[D])",
+                             "Severe~Disease~(E[M])")),
+    PSTRAIN = factor(rep(c("Pre-Omicron", "Post-Omicron"), each = 2),
+                    levels = c("Pre-Omicron", "Post-Omicron"))
+)
+
+RFIG_INF_DATA_pstrain[,PSTRAIN:=factor(PSTRAIN, levels = c("Pre-Omicron", "Post-Omicron")),]
+RFIG_INF_DATA_pstrain[,TYPE:=factor(TYPE, levels = c("S", "D")),]
+RFIG_INF_DATA_pstrain[TYPE == "S",TYPE2:="Infection~(E[S])",]
+RFIG_INF_DATA_pstrain[TYPE == "D",TYPE2:="Symptomatic~Disease~(E[D])",]
+
+RFIG_INF_DATA_pstrain[
+  BEST_FIT_INF_pstrain, 
+  on = .(TYPE, STRAIN, method, version, STUDY_TYPE_SIMPLE, AGE_ADJUST)
+  ][OUTPUT == "Predicted" & !is.na(PSTRAIN) & version == "linear" & STUDY_TYPE_SIMPLE == "All"
+    ]->data.temp
+
+ggplot(data.temp,
+       aes(x = MIN_TIME, y = VALUE, fill = IMM, color = IMM, size = WEIGHT/2)) +
+  #scale_size(range = c(.1, 3)) +
+  geom_point(shape = 21, color = "black")    +
+  scale_color_manual("Immunity",
+                     values=c(dose_colors3),
+                     labels = c("V" = "Primary Series Only",
+                                "I" = "Prior Infection Only",
+                                "H" = "Primary Series + Prior Infection"
+                                ),
+                     aesthetics = c("fill","color")) +
+  coord_cartesian(xlim = c(0, 40), ylim = c(0, 110))+
+  theme_minimal() +
+  scale_y_continuous(breaks = c(0, 25, 50, 75, 100)) +
+  theme(plot.title = element_text(hjust = 0.5), 
+        legend.position = "bottom") +
+  theme(text = element_text(size = 20)) +
+  geom_line(aes(y = pred), data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], lwd = 1) +
+  geom_line(aes(y = ci.lb), data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], 
+            lwd = 0.5, linetype = "dashed") +
+  geom_line(aes(y = ci.ub), data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], 
+            lwd = 0.5, linetype = "dashed") +
+  geom_ribbon(aes(ymin = ci.lb, ymax = ci.ub, x = MIN_TIME), 
+              data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], color = NA, 
+              alpha = 0.3, size = 1) +
+  guides(size = "none")+
+  labs(x = "Minimum number of weeks since immune conferring event", y="Efficacy") +
+  facet_grid(PSTRAIN~TYPE2,
+             labeller = labeller(
+            TYPE2 = label_parsed,
+               PSTRAIN = c("Pre-Omicron" = "Prior infection\n w/Pre-Omicron",
+                           "Post-Omicron" = "Prior infection \n w/Omicron")
+             )
+             ) +
+  geom_label(aes(label = text),
+             x = 0, y = 107, size = 6, 
+             color = "black", fill = "white", 
+             data = dat_text)
+
+ggsave("Figures/Fig_5.svg", dev = "svg")
+```
+
+\newpage
+
+
+
+Finally, we compared $E_S$ and $E_D$ following booster doses in individuals with
+and without prior infection (Figure \@ref(fig:Hybrid-Boosted-Figure) and Supplementary Table S25). At two weeks following a booster dose, individuals with a prior infection had significantly greater $E_S$, `r rtable_infection_hboosted_bestfit[TYPE == "S" & Infected == "TRUE"]$print.value.2` vs `r rtable_infection_hboosted_bestfit[TYPE == "S" & Infected == "FALSE"]$print.value.2` and $E_D$, `r rtable_infection_hboosted_bestfit[TYPE == "D" & Infected == "TRUE"]$print.value.2` vs `r rtable_infection_hboosted_bestfit[TYPE == "D" & Infected == "FALSE"]$print.value.2` than those with no prior infection. Differences at 30 weeks were not significant.
+
+```{r Hybrid-Boosted-Figure, fig.width = 12, fig.height = 6, fig.cap = "Protection from 3+ doses of mRNA vaccine against infection and symptomatic disease by prior infection and time since most recent immune conferring event relative to an immune-naive population. For individuals who received primary vaccination with prior infection time since immune conferring event refers to time since vaccination. Size of each dot is proportional to weighting in the analysis.", dev = "tiff", dpi = 500, out.width = "5.82in", out.height = "2.91in"}
+dat_text = data.table(
+    text = LETTERS[1:2],
+    TYPE2 = rep(c("Infection~(E[S])",
+                  "Symptomatic~Disease~(E[D])"),
+                  levels = c("Infection~(E[S])",
+                             "Symptomatic~Disease~(E[D])",
+                             "Severe~Disease~(E[M])"))
+)
+RFIG_HYBRID_BOOSTED_DATA[,TYPE:=factor(TYPE, levels = c("S", "D")),]
+RFIG_HYBRID_BOOSTED_DATA[TYPE == "S",TYPE2:="Infection~(E[S])",]
+RFIG_HYBRID_BOOSTED_DATA[TYPE == "D",TYPE2:="Symptomatic~Disease~(E[D])",]
+RFIG_HYBRID_BOOSTED_DATA[Infected == F, DOSE:= "Primary + Boosted"]
+RFIG_HYBRID_BOOSTED_DATA[Infected == T, DOSE:= "Primary + Booster + Prior Infection"]
+
+RFIG_HYBRID_BOOSTED_DATA[BEST_FIT_HBOOSTER, 
+                         on = .(TYPE, STRAIN, method, version, 
+                                STUDY_TYPE_SIMPLE, AGE_ADJUST)][
+                           OUTPUT == "Predicted" & version == "linear" & STUDY_TYPE_SIMPLE == "All"]->data.temp
+ggplot(data.temp,
+       aes(x = MIN_TIME, y = VALUE, fill = DOSE, color = DOSE, size = WEIGHT/2)) +
+  scale_size(range = c(.1, 3)) +
+  geom_point(shape = 21, color = "black")  +
+  #scale_color_manual("Immunity/Strain",
+  #                   values=c(dose_colors2),
+  #                   labels = c("Booster/Omicron",
+  #                              "Primary/Omicron",
+  #                              "Booster/Pre-Omicron",
+  #                              "Primary/Pre-Omicron"), aesthetics = c("fill","color")) +
+  coord_cartesian(xlim = c(0, 40), ylim = c(0, 110))+
+  theme_minimal() +
+  scale_y_continuous(breaks = c(0, 25, 50, 75, 100)) +
+  theme(plot.title = element_text(hjust = 0.5), 
+        legend.position = "bottom") +
+  theme(text = element_text(size = 20)) +
+  geom_line(aes(y = pred), data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], lwd = 1) +
+  geom_line(aes(y = ci.lb), data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], 
+            lwd = 0.5, linetype = "dashed") +
+  geom_line(aes(y = ci.ub), data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], 
+            lwd = 0.5, linetype = "dashed") +
+  geom_ribbon(aes(ymin = ci.lb, ymax = ci.ub, x = MIN_TIME), 
+              data.temp[AGE_GROUP == "Adult" | is.na(AGE_GROUP)], 
+              color = NA, alpha = 0.3, size = 1) +
+  guides(size = "none")+
+  labs(x = "Minimum number of weeks since vaccination", y="Efficacy", 
+       col = "Dose", fill = "Dose") + 
+  facet_wrap(~TYPE2,
+             labeller = label_parsed#labeller(
+               #TYPE = c(
+              #   "S" = "Infection~E[S]",
+              #   "D" = "Symptomatic Disease"
+               #)
+             ) +
+  geom_label(aes(label = text),
+             x = 0, y = 107, size = 6, 
+             color = "black", fill = "white", 
+             data = dat_text)
+
+ggsave("Figures/Fig_6.svg", dev = "svg")
+```
+
+## Evaluation of publication bias
+\markup{To evaluate potential publication bias in our data set, we calculated funnel plot asymmetry for estimates of $E_S$, $E_D$, and $E_M$ broken
+down by strain, type of immunity (Primary, Booster, or Infection/Hybrid), and time frame (strictly less than ten weeks, strictly greater than ten weeks,
+or a mixture of both). Out of 40 regression analyses, 9 showed evidence of asymmetry at the p<.05 significance level, of which 4 showed evidence at the
+p<.0001 significance level. The direction of this bias showed that smaller studies tended to report higher effectiveness. (Supplementary Figures S1-2 and Table S4)}
+
+
+# Discussion
+As SARS-CoV-2 becomes endemic, precise estimates of the durability and quality of protection are valuable for guiding ongoing vaccination programs, disease surveillance, and other mitigation strategies. In this meta-regression, we combined data from 123 studies to estimate vaccination-induced and infection-induced protection over time against three outcomes: SARS-2-CoV2 infection, symptomatic COVID-19, and severe COVID-19. We found that 1) all three forms of immunity waned over time, but that protection against severe disease was the most durable, 2) protection against Omicron strains was substantially lower than pre-Omicron strains, 3) booster doses could restore protection against pre-Omicron strains and enhance it against Omicron strains, without improving durability of immunity, 4) prior infection increased the durability of vaccine-induced immunity over time and conferred immunity that was more durable than vaccine-derived, 5) prior infection with a pre-Omicron strain provided similar initial protection as primary vaccination against infection with Omicron strains, but was more durable, and 6) prior infection enhances booster-induced immunity against Omicron strains. These results are consistent with prior meta-analyses, but expand on  them due to 1) the inclusion of studies up to January 1, 2023, 2) a comprehensive analysis of primary and booster-induced immunity, infection-induced immunity, and hybrid immunity, and 3) an analysis of infection-induced immunity following both pre-Omicron and Omicron variants.[@bobrovitz2023protective; @stein2023past; @wu2023long; @mohammed2023systematic; @feikin2022duration; @petravs2024understanding; @nealon2024reported]
+
+Immunological memory consists of both humoral and cellular responses which may be depleted at different time scales.[@pooley2023durability] Given the availability of data, we have focused on waning protection over the first six months after an immune conferring event, corresponding roughly to the duration of humoral immunity following vaccination. [@levin2021waning]  The maintenance of residual immunity at six months, especially against severe disease, suggests that long-lived memory CD4+ and CD8+ T cell populations likely continue to provide protection, that antibody responses in relevant respiratory compartments may differ from those measured in blood, or that residual neutralizing antibody titers are sufficient to maintain immunity. Future study will be necessary to quantify the strength and durability of that protection following primary vaccination, booster doses, and infection.
+
+Our results highlight the importance of booster doses for protecting against new variants. Even though hybrid immunity proved to be more durable than the immunity from vaccination alone, protection against infection and symptomatic disease against Omicron variants still waned significantly over the course of 30 weeks, including among those who got infected by an Omicron variant. It is therefore possible that a new variant could escape from the immunity conferred by Omicron infection, unless that immunity is regularly augmented by booster doses.
+
+As more information on COVID-19 becomes available, estimates of the durability of immunity will have to be continuously updated. During the preparation of this manuscript a meta-analysis featuring almost ten times as many estimates was published. [@petravs2024understanding] The present study has several limitations. First, all estimates in the meta-regression were associated with a range of times since the immune conferring event, but many of these ranges were open-ended with a minimum time but no maximum. Therefore, for all estimates, we took the time since immune conferring event to be the minimum time, making our estimates conservative. Second, all estimates in this analysis were relative to previously uninfected and unvaccinated individuals. This sub-population is not randomized, potentially introducing bias. [@stephenson2023efficacy] \markup{Furthermore, some individuals in our "uninfected" groups may have had undiagnosed prior infections due to imperfect ascertainment.}  Third, heterogeneity of risk within cohorts can lead to an imbalance between groups, potentially contributing to waning immunity. This can occur if there are unmeasured confounding variables such as differences in exposure or susceptibility to severe disease. \markup{This type of confounding can be overcome by a self-controlled approach such as the use of "control interval" directly following vaccination before immunity has formed.} [@korves2022relative] Fourth, in this study we assume a linear decline of immunity over time, which we expect to be unlikely to hold beyond 26 weeks. \markup{Therefore, these results should be considered descriptive rather than predictive.} Exponential or bi-exponential decay may be a more appropriate model for the decline of immunity over the course of several years. \markup{Fifth, data limitations prevented us from performing certain analyses, such as estimates of detailed breakdowns of protection against severe disease in the Omicron period. Due to data limitations we also broadly defined three or more doses as providing "boosted" immunity when there may be distinctions between third and fourth booster doses. This simplification would tend to bias our estimates of third booster immunity upwards and fourth booster immunity downwards.} [@petravs2024understanding] \markup{Sixth, for some measures we found some evidence of small-study effects, emphasizing the importance of larger pre-registered studies of vaccine effectiveness.}  Finally, due to the time frame of this analysis, we do not include effectiveness estimates for updated boosters.
+
+A comprehensive understanding of the dynamics of immunity following both vaccination and infection will be critical for future pandemic preparedness.
+The risk posed by emerging SARS-CoV-2 variants will depend on the population-level protection against infection and severe disease and its robustness to strain replacement. Knowing when and how vaccine protection wanes can help public health officials plan for future vaccination and booster campaigns, offer guidance to individuals about how long protection from vaccination can last, and help ensure equitable distribution of vaccines[@matrajt2021vaccine].
+Replenishment of population immunity from ongoing SARS-CoV-2 transmission infections and booster doses must be weighed against the overall waning of immunity over time to assess the potential risk posed by a new emerging variants.
+<!-- The results from our analysis are also informative for individuals making personal decisions.  Our analysis showed that booster vaccination restores vaccine-induced protection but waned at similar rate as original vaccination series. This suggests that periodic boosting might be necessary to maintain protection, especially against infection which could be important for people at risk. Although protection against severe outcomes seems to remain relatively stable for at least six months more studies are needed to investigate the full duration of such protection. We also found that hybrid immunity appears to confer more durable protection than primary vaccination against both infection and severe disease, the persistence of this hierarchy will likely depend on future circulating strains. The divergence of emerging strains from previously acquired strains may impact immune recognition and reduce strain cross-protection. -->
+
+<!-- The fast development and roll-out of COVID-19 vaccines was critical during the COVID-19 pandemic, allowing communities to resume almost normal activities while largely reducing the risk of vaccinated individuals from infection, severe disease and death and preventing health system from overheating. As the pandemic evolved and new strains emerged, studies showed that vaccine-induced and naturally-acquired protection against infection, symptomatic infection or severe disease waned with time and decreased with emerging strains. Understanding the waning of COVID-19 vaccine protection is important for both public health and personal decision-making, as well as for the development of more effective vaccines and economic planning.  -->
+
+<!-- Our analysis highlights some of the protection mechanisms which require improvement in new vaccines, namely quickly waning protection from infection and loss of effectiveness against emerging variants. Updated strain-specific vaccines may decrease the occurrence of vaccine escape with future variants but need to be successfully targeted. Future analyses, employing our results should be able to estimate what levels of protection against newly emerging variants is critical for maintaining population immunity and evaluate the urgency for vaccine updates. -->
+
+# Bibliography

@@ -1,0 +1,794 @@
+---
+title: "Supplementary Material for Durability of COVID-19 vaccine and infection induced immunity: a systematic review and meta-regression analysis"
+author: 
+  - Mia Moore. Fred Hutchison Cancer Research Center, Seattle, WA
+  - Larissa Anderson. Fred Hutchison Cancer Research Center, Seattle, WA
+  - Joshua T. Schiffer. Fred Hutchison Cancer Research Center, Seattle, WA
+  - Laura Matrajt. Fred Hutchison Cancer Research Center, Seattle, WA
+  - Dobromir Dimitrov. Fred Hutchison Cancer Research Center, Seattle, WA
+output:
+  bookdown::word_document2:
+    number_sections: false
+    fontsize: 10
+    fontfamily: "Times New Roman"
+    link-citations: true
+bibliography: Waning_Review_Data_References.bib
+csl: the-lancet.csl
+---
+
+<!-- output: -->
+<!--   bookdown::pdf_document2: -->
+<!--     number_sections: false -->
+<!--     latex_engine: xelatex -->
+
+# Supplementary Methods
+
+# Supplementary Tables and Figures
+
+\renewcommand{\thetable}{S\arabic{table}}
+
+
+```{r setup, include=FALSE, eacho = FALSE}
+PADDING = 3
+library(flextable)
+library(data.table)
+library(tidyverse)
+library(ftExtra)
+Meta_Regression_Data <- readRDS("../../data/Waning_Table_1_30.rds")#Meta_Analysis_Results/Results_2024-04-11/Meta_Regression_Data.rds")
+results_directory = "../../data/Meta_Analysis_Results/Results_2025-02-15/"
+rtable_strain = readRDS(paste0(results_directory,"rtable_strain.rds"))
+rtable_booster = readRDS(paste0(results_directory,"rtable_booster.rds"))
+rtable_infection = readRDS(paste0(results_directory,"rtable_infection.rds"))
+rtable_infection_mod = readRDS(paste0(results_directory,"rtable_infection_mod.rds"))
+rtable_hboosted = readRDS(paste0(results_directory,"rtable_hboosted.rds"))
+
+rtable_strain_bestfit = readRDS(paste0(results_directory,"rtable_strain_bestfit.rds"))
+rtable_booster_bestfit = readRDS(paste0(results_directory,"rtable_booster_bestfit.rds"))
+rtable_infection = readRDS(paste0(results_directory,"rtable_infection_bestfit.rds"))
+rtable_infection_mod_bestfit = readRDS(paste0(results_directory,"rtable_infection_mod_bestfit.rds"))
+rtable_hboosted_bestfit = readRDS(paste0(results_directory,"rtable_hboosted_bestfit.rds"))
+```
+
+```{r Method-Description, echo = FALSE}
+
+method.table = data.table(
+  method = c("intercept only: study and estimate",
+             "slope-intercept correlation: study and estimate",
+             "slope-intercept-modulator correlation: study and estimate",
+             "intercept only: estimate only",
+             "slope-intercept correlation: estimate only",
+             "slope-intercept-modulator correlation: estimate only",
+             "intercept only: study only",
+             "slope-intercept correlation: study only",
+             "slope-intercept-modulator correlation: study only"),
+  study.effects = c(
+    "u[0]", "u[0] + t u[1]",
+    "X u[0] + t u[1]", rep("None",3),
+    "u[0]", "u[0] + t u[1]",
+    "X u[0] + t u[1]"
+  ),
+  estimate.effects = c(
+    "v[0]", "v[0] + t v[1]",
+    "X v[0] + t v[1]",
+    "v[0]", "v[0] + t v[1]",
+    "X v[0] + t v[1]", rep("None",3)
+  )
+  #u.i = c(1, 1, 1, 0, 0, 0, 1, 1, 1),
+  #u.s = c(0, 1, 1, 0, 0, 0, 0, 1, 1),
+  #u.m = c(0, 0, 1, 0, 0, 0, 0, 0, 1),
+  #v.i = c(1, 1, 1, 1, 1, 1, 0, 0, 0),
+  #v.s = c(0, 1, 1, 0, 1, 1, 0, 0, 0),
+  #v.m = c(0, 0, 1, 0, 0, 1, 0, 0, 0)
+)
+
+method.table[,description:=sprintf("study-level: %s\nestimate-only: %s",study.effects, estimate.effects),]
+```
+
+```{r Label-Outcomes, echo = FALSE}
+rtable_strain[TYPE == "S", OUTCOME:= "Infection"]
+rtable_strain[TYPE == "D", OUTCOME:= "Symptomatic\nDisease"]
+rtable_strain[TYPE == "M", OUTCOME:= "Severe\nDisease"]
+etable_strain = rtable_strain[method.table, on = .(method)]
+setkey(etable_strain, TYPE, BIC,method, STRAIN)
+
+rtable_booster[TYPE == "S", OUTCOME:= "Infection"]
+rtable_booster[TYPE == "D", OUTCOME:= "Symptomatic\nDisease"]
+rtable_booster[TYPE == "M", OUTCOME:= "Severe\nDisease"]
+etable_booster = rtable_booster[method.table, on = .(method)]
+setkey(etable_booster, TYPE, STRAIN, BIC,method,DOSE)
+
+rtable_infection[TYPE == "S", OUTCOME:= "Infection"]
+rtable_infection[TYPE == "D", OUTCOME:= "Symptomatic\nDisease"]
+etable_infection = rtable_infection[method.table, on = .(method)]
+etable_infection[,IMMUNITY:=factor(IMMUNITY, levels = c("Primary", "Natural Imm.", "Hybrid", "Imm. vs Pri.", "Hyb. vs Pri.")),]
+setkey(etable_infection, TYPE, STRAIN, BIC,method,IMMUNITY)
+
+
+rtable_infection_mod[TYPE == "S", OUTCOME:= "Infection"]
+rtable_infection_mod[TYPE == "D", OUTCOME:= "Symptomatic\nDisease"]
+etable_infection_mod = rtable_infection_mod[method.table, on = .(method)]
+etable_infection_mod[,IMMUNITY:=factor(IMMUNITY, levels = c("Primary", "Natural Imm.", "Hybrid", "Imm. vs Pri.", "Hyb. vs Pri.")),]
+setkey(etable_infection_mod, TYPE, BIC,method,PSTRAIN,IMMUNITY)
+
+
+rtable_hboosted[TYPE == "S", OUTCOME:= "Infection"]
+rtable_hboosted[TYPE == "D", OUTCOME:= "Symptomatic\nDisease"]
+#RFIG_HYBRID_BOOSTED_DATA[Infected == F, DOSE:= "Primary + Boosted"]
+#RFIG_HYBRID_BOOSTED_DATA[Infected == T, DOSE:= "Primary + Booster + Prior Infection"]
+etable_hboosted = rtable_hboosted[method.table, on = .(method)]
+setkey(etable_hboosted, TYPE, BIC,method, DOSE)
+```
+```{r Strain-Table-Log}
+rtable_strain_bestfit[STUDY_TYPE_SIMPLE == "All",
+                        .(OUTCOME, STRAIN, version, print.value.2, print.value.26)
+                      ]%>%reshape( 
+  direction = "wide", 
+  timevar = "version", 
+  idvar = c("OUTCOME", "STRAIN")
+  )%>%
+  flextable(col_keys = c("OUTCOME", "STRAIN", "print.value.2.linear", "print.value.2.log","print.value.26.linear", "print.value.26.log"))%>%
+  merge_v(j = 1)%>%
+  set_header_labels(values = c("Outcome", "Strain", "Linear (Main)", "Logarithmic", "Linear (Main)", "Logarithmic"))%>%
+  add_header_row(values = c("", "Week 2", "Week 26"), colwidths = c(2,2,2))%>%hline(i = c(3, 6))%>%
+  align(align = "center", part = "header", i = 1)%>%autofit()%>%fix_border_issues()
+```
+```{r Strain-Table-study}
+rtable_strain_bestfit[version == "linear",
+                        .(OUTCOME, STRAIN, STUDY_TYPE_SIMPLE, print.value.2, print.value.26)
+                      ]%>%reshape( 
+  direction = "wide", 
+  timevar = "STUDY_TYPE_SIMPLE", 
+  idvar = c("OUTCOME", "STRAIN")
+  )%>%
+  flextable(col_keys = c("OUTCOME", "STRAIN", "print.value.2.Case-Control or Randomized", "print.value.2.Cohort", "print.value.26.Case-Control or Randomized", "print.value.26.Cohort"))%>%
+  merge_v(j = c(1, 2))%>%
+  set_header_labels(values = c("Outcome", "Strain", "Case Control", "Cohort", "Case Control", "Cohort"))%>%
+  add_header_row(values = c("", "Week 2", "Week 26"), colwidths = c(2,2,2))%>%hline(i = c(3,6))%>%
+  align(align = "center", part = "header", i = 1)%>%fix_border_issues()%>%autofit()%>%fit_to_width(7.5)
+```
+
+```{r Booster-Table-Log}
+rtable_booster_bestfit[STUDY_TYPE_SIMPLE == "All",
+                        .(OUTCOME, STRAIN, Boosted, version, print.value.2, print.value.26)
+                      ]%>%reshape( 
+  direction = "wide", 
+  timevar = "version", 
+  idvar = c("OUTCOME", "STRAIN", "Boosted")
+  )%>%
+  flextable(col_keys = c("OUTCOME", "STRAIN", "Boosted", "print.value.2.linear", "print.value.2.log","print.value.26.linear", "print.value.26.log"))%>%
+  merge_v(j = c(1, 2))%>%
+  set_header_labels(values = c("Outcome", "Strain", "Boosted", "Linear (Main)", "Logarithmic", "Linear (Main)", "Logarithmic"))%>%
+  add_header_row(values = c("", "Week 2", "Week 26"), colwidths = c(3,2,2))%>%hline(i = seq(3, 15, by = 3))%>%
+  align(align = "center", part = "header", i = 1)%>%fix_border_issues()%>%autofit()%>%fit_to_width(7.5)
+```
+
+```{r Booster-Table-study}
+rtable_booster_bestfit[version == "linear",
+                        .(OUTCOME, STRAIN, Boosted, STUDY_TYPE_SIMPLE, print.value.2, print.value.26)
+                      ]%>%reshape( 
+  direction = "wide", 
+  timevar = "STUDY_TYPE_SIMPLE", 
+  idvar = c("OUTCOME", "STRAIN", "Boosted")
+  )%>%
+  flextable(col_keys = c("OUTCOME", "STRAIN", "Boosted", "print.value.2.Case-Control or Randomized", "print.value.2.Cohort", "print.value.26.Case-Control or Randomized", "print.value.26.Cohort"))%>%
+  merge_v(j = c(1, 2))%>%
+  set_header_labels(values = c("Outcome", "Strain", "Boosted", "Case Control", "Cohort", "Case Control", "Cohort"))%>%
+  add_header_row(values = c("", "Week 2", "Week 26"), colwidths = c(3,2,2))%>%hline(i = seq(3, 15, by = 3))%>%
+  align(align = "center", part = "header", i = 1)%>%fix_border_issues()%>%autofit()%>%fit_to_width(7.5)
+```
+
+
+
+
+```{r Infection-Table-mod-Log}
+rtable_infection_mod_bestfit[STUDY_TYPE_SIMPLE == "All",
+                        .(OUTCOME, STRAIN, Boosted, version, print.value.2, print.value.26)
+                      ]%>%reshape( 
+  direction = "wide", 
+  timevar = "version", 
+  idvar = c("OUTCOME", "STRAIN", "Boosted")
+  )%>%
+  flextable(col_keys = c("OUTCOME", "STRAIN", "Boosted", "print.value.2.linear", "print.value.2.log","print.value.26.linear", "print.value.26.log"))%>%
+  merge_v(j = c(1, 2))%>%
+  set_header_labels(values = c("Outcome", "Strain", "Boosted", "Linear (Main)", "Logarithmic", "Linear (Main)", "Logarithmic"))%>%
+  add_header_row(values = c("", "Week 2", "Week 26"), colwidths = c(3,2,2))%>%hline(i = seq(3, 15, by = 3))%>%
+  align(align = "center", part = "header", i = 1)%>%fix_border_issues()%>%autofit()%>%fit_to_width(7.5)
+```
+
+```{r Table-Functions, echo = FALSE}
+model_comparison_table_strain = function(.DT){
+  flextable(.DT, 
+          col_keys = c("STRAIN", 
+                       "description", 
+                       "print.value.2", "print.value.30", "BIC")
+          )%>%
+    merge_v(j=c(8, 11))%>%
+    set_header_labels(
+            values = c("Strain", "Random effects", 
+                       "Initial (Week 2)", "Waned (Week 30)", "BIC"))%>%
+    font(fontname = "Times New Roman", part = "all")%>%
+    fontsize(size = 8)%>%
+    fontsize(size = 10, part = "header")%>%
+    bold(part = "header")%>%
+    autofit()%>%
+    hline(i =seq(3,24, by = 3))%>%
+    fix_border_issues()%>%bg(i= seq(3), bg = "grey")%>%
+    padding(padding.top = PADDING, padding.bottom = PADDING)
+}
+model_comparison_table_booster = function(.DT){
+flextable(.DT, 
+          col_keys = c("DOSE", 
+                       "description", 
+                       "print.value.2", "print.value.30", "BIC")
+          )%>%
+    merge_v(j=c(10, 13))%>%
+    set_header_labels(
+            values = c("Dose", "Random effects", 
+                       "Initial (Week 2)", "Waned (Week 30)", "BIC"))%>%
+    font(fontname = "Times New Roman", part = "all")%>%
+    fontsize(size = 8)%>%
+    fontsize(size = 10, part = "header")%>%
+    bold(part = "header")%>%
+    autofit()%>%
+    hline(i =seq(3,24, by = 3))%>%
+    fix_border_issues()%>%
+    bg(i= seq(3), bg = "grey")%>%
+    padding(padding.top = PADDING, padding.bottom = PADDING)
+}
+
+model_comparison_table_infected = function(.DT, n = 5, m = 8){
+flextable(.DT, 
+          col_keys = c("IMMUNITY", 
+                       "description", 
+                       "print.value.2", "print.value.30", "BIC")
+          )%>%
+    merge_v(j=c(10, 13))%>%
+    set_header_labels(
+            values = c("Immunity", "Random effects", 
+                       "Initial (Week 2)", "Waned (Week 30)", "BIC"))%>%
+    font(fontname = "Times New Roman", part = "all")%>%
+    fontsize(size = 8)%>%
+    fontsize(size = 10, part = "header")%>%
+    bold(part = "header")%>%
+    autofit()%>%
+    hline(i =seq(n, n * m, by = n))%>%
+    fix_border_issues()%>%
+    bg(i= seq(n), bg = "grey")%>%
+    padding(padding.top = PADDING, padding.bottom = PADDING)
+}
+```
+
+```{r Define-Immunity, echo = FALSE}
+Meta_Regression_Data[IMM == "B",COMPARISON := "Primary series + booster dose (no prior infection)",]
+Meta_Regression_Data[IMM == "V",COMPARISON := "Primary series (no prior infection)",]
+Meta_Regression_Data[IMM == "H" & PSTRAIN == "Omicron", COMPARISON := "Primary series (prior Omicron infection)",]
+Meta_Regression_Data[IMM == "HB" & PSTRAIN == "Omicron", COMPARISON := "Primary series + booster dose\n(prior Omicron infection)",]
+Meta_Regression_Data[IMM == "I" & PSTRAIN == "Omicron", COMPARISON := "Prior Omicron infection",]
+Meta_Regression_Data[IMM == "H" & PSTRAIN == "Pre-Omicron", COMPARISON := "Primary series\n(prior pre-Omicron infection)",]
+Meta_Regression_Data[IMM == "HB" & PSTRAIN == "Pre-Omicron", COMPARISON := "Primary series + booster dose\n(prior pre-Omicron infection)",]
+Meta_Regression_Data[IMM == "I" & PSTRAIN == "Pre-Omicron", COMPARISON := "Prior pre-Omicron 2infection",]
+
+Meta_Regression_Data[is.na(MAX_TIME) & round(MIN_TIME) == MIN_TIME,
+                     TIME_FRAME:= paste0(MIN_TIME, "+ weeks"),]
+
+Meta_Regression_Data[!is.na(MAX_TIME) & 
+                       (round(MIN_TIME) == MIN_TIME) & (round(MAX_TIME) == MAX_TIME),
+                     TIME_FRAME:= paste(MIN_TIME, " to ", MAX_TIME, "weeks"),]
+
+Meta_Regression_Data[is.na(MAX_TIME) & round(MIN_TIME) != MIN_TIME, 
+                     TIME_FRAME:= paste0(round(7 * MIN_TIME), "+ days"),]
+
+Meta_Regression_Data[!is.na(MAX_TIME) & 
+                       (round(MIN_TIME) != MIN_TIME | round(MAX_TIME) != MAX_TIME),
+                     TIME_FRAME:= paste(round(7 * MIN_TIME), " to ", round(7 * MAX_TIME), "days"),]
+
+```
+
+```{r Create-Estimate-Table, echo = FALSE}
+Display_Data = Meta_Regression_Data[
+  IMM%in% c("V", "I", "H", "B", "HB") &
+  TYPE %in% c("S", "D", "M") & !is.na(WEIGHT),
+  .(OUTPUT = sprintf("%.1f (%.1f - %.1f)", VALUE, LOWER, UPPER),#paste0(VALUE, " (", LOWER, " - ", UPPER, ")"),
+    AGE_GROUP,
+    TIME_FRAME),
+  .(STUDY = sprintf("@%s", STUDY), TYPE, COMPARISON, STRAIN)
+]
+```
+
+```{r Excluded-Study-Table, echo = FALSE}
+data.table(
+  STUDY = c("Bansel *et al. Vaccines* 2022 @Bansal_2022", 
+            "Barda *et al. The Lancet* 2021 @Barda_2021", 
+            "Gazit *et al. The BMJ* 2022 @Gazit_2022", 
+            "Kirsebom *et al. The Lancet Regional Health-Europe* 2022 @Kirsebom_2022", 
+            "Magen *et al. New England Journal of Medicine* 2022 @Magen_2022",
+            "McConeghy *et al. JAMA network open* 2022 @McConeghy_2022", 
+            "Nielsen *et al. PLoS medicine* 2022 @Nielsen_2022", 
+            "Nyberg *et al. The Lancet* 2022 @Nyberg_2022", 
+            "Patalon *et al. JAMA Internation Medicine* 2022 @Patalon_2021", 
+            "Patalon *et al. Nature Communcations* 2022 @Patalon_2022_2", 
+            "Sharma *et al. medRx* 2021 @Sharma_2021"),
+  REASON = c("Outcome is severe infection conditional on infection",
+             "Comparator group is individuals with three vaccine doses",
+             "Comparator group is individuals with three vaccine doses",
+             "Comparator group is individuals with primary vaccination",
+             "Comparator group is individuals with three vaccine doses",
+             "Comparator group is individuals with primary vaccination",
+             "Comparator group is individuals with prior infection",
+             "Outcome is severe infection conditional on infection",
+             "Comparator group is individuals with primary vaccination",
+             "Comparator group is individuals with primary vaccination",
+             "Comparator group is individuals with primary vaccination"
+             ))%>%
+  flextable()%>%
+  border_inner_h()%>%
+  border_outer()%>%
+  border_inner_v()%>%
+  fontsize(size = 8)%>%
+  fontsize(size = 10, part = "header")%>%
+  bold(part = "header")%>%
+  set_header_labels(
+    STUDY = "Study", 
+    REASON = "Reason for exclusion"
+    )%>%autofit()%>%colformat_md(j = 1)%>%set_caption("Studies excluded from meta-analysis with reasons.")
+```
+
+
+```{r Estimate-Table, echo=FALSE}
+Display_Data%>%flextable()%>%border_inner_h()%>%border_outer()%>%border_inner_v()%>%fontsize(size = 8)%>%fontsize(size = 10, part = "header") %>%rotate(j = c(1, 2), rotation = "btlr", part = "header")%>%
+  set_header_labels(
+  STUDY = "Study",
+  TYPE = "Outcome",
+  COMPARISON = "Type of Immunity (vs naive)",
+  STRAIN = "Strain",
+  OUTPUT = "Estimate",
+  AGE_GROUP = "Age range",
+  TIME_FRAME = "Time since\nimmune conferring\nevent")%>%width(width = c(0.5, 0.3, 2, 0.8, 1.25, 0.8, 0.9))%>%colformat_md(j = 1)%>%set_caption("Estimates used in meta-analysis.")
+```
+
+
+```{r Study Summary Table}
+STUDY_SUMMARY = readRDS(paste0(results_directory,"STUDY_SUMMARY.rds"))
+
+setkey(STUDY_SUMMARY, IMM, STRAIN,TYPE)
+STUDY_SUMMARY%>%
+  reshape(
+    direction = "wide",
+    idvar = c("IMM", "PSTRAIN", "TYPE"),
+    timevar = c("STRAIN"),
+    v.names = "studies"
+    )%>%
+  reshape(
+    direction = "wide",
+    idvar = c("IMM", "PSTRAIN"),
+    timevar = c("TYPE"),
+    times = c("S", "D", "M"),
+    v.names = c("studies.Pre-Omicron","studies.Omicron")
+  )->STUDY_TABLE
+
+STUDY_TABLE[PSTRAIN == "Omicron", "studies.Pre-Omicron.S" := "N/A"]
+STUDY_TABLE[PSTRAIN == "Omicron", "studies.Pre-Omicron.D" := "N/A"]
+STUDY_TABLE[PSTRAIN == "Omicron", "studies.Pre-Omicron.M" := "N/A"]
+
+STUDY_TABLE[is.na(studies.Omicron.S), studies.Omicron.S := "-"]
+STUDY_TABLE[is.na(studies.Omicron.D), studies.Omicron.D := "-"]
+STUDY_TABLE[is.na(studies.Omicron.M), studies.Omicron.M := "-"]
+STUDY_TABLE[is.na(`studies.Pre-Omicron.S`), "studies.Pre-Omicron.S" := "-"]
+STUDY_TABLE[is.na(`studies.Pre-Omicron.D`), "studies.Pre-Omicron.D" := "-"]
+STUDY_TABLE[is.na(`studies.Pre-Omicron.M`), "studies.Pre-Omicron.M" := "-"]
+
+STUDY_TABLE[IMM == "I", VACC_STATUS:= "None"]
+STUDY_TABLE[IMM %in% c("V", "H"), VACC_STATUS := "Primary"]
+STUDY_TABLE[IMM %in% c("B", "HB"), VACC_STATUS := "Boosted"]
+STUDY_TABLE[PSTRAIN == "Pre-Omicron", PRIOR_INFECTION := "pre-Omicron: \n Infection occurred during\n a window ending\n prior to Dec 1st, 2021"]
+STUDY_TABLE[PSTRAIN == "Omicron", PRIOR_INFECTION := "Omicron: \n Infection occurred during\n a window ending\n on or after Dec 1st, 2021"]
+STUDY_TABLE[PSTRAIN == "", PRIOR_INFECTION := "None"]
+
+setkey(STUDY_TABLE, PSTRAIN, IMM)
+STUDY_TABLE%>%
+  flextable(col_keys = c(
+    "PRIOR_INFECTION","VACC_STATUS", 
+    "studies.Pre-Omicron.S",
+    "studies.Omicron.S",
+    "studies.Pre-Omicron.D",
+    "studies.Omicron.D",
+    "studies.Pre-Omicron.M",
+    "studies.Omicron.M"
+  )
+            )%>%
+  set_header_labels(
+    values = c(
+               "Prior Infection", "Vaccination\nStatus", 
+               "Pre-Om", "Om", "Pre-Om", "Om", "Pre-Om", "Om"))%>%
+  add_header_row(
+    values = c("Prior Infection","Vaccination\nStatus","Infection", 
+               "Symp. Disease", "Sev. Disease"),
+    colwidths = c(1,1,2,2,2))%>%
+  mk_par(part = "header", j = 3,i = 1, 
+         value = as_paragraph("Infection (E", as_sub("S"), ")"))%>%
+  mk_par(part = "header", j = 5,i = 1, 
+         value = as_paragraph("Symptomatic\n Disease (E", as_sub("D"), ")"))%>%
+  mk_par(part = "header", j = 7,i = 1, 
+         value = as_paragraph("Severe Disease (E", as_sub("M"), ")"))%>%
+  add_header_row(
+    values = c( 
+               "Prior Infection","Vaccination\nStatus",
+               "Number of studies (time points) measure protection against..."),
+    colwidths = c(1, 1 ,6))%>%
+  merge_v(part = "header")%>% merge_v(j = 18)%>%fix_border_issues()%>%
+  autofit()->Estimate_table
+
+
+```
+
+```{r Summary-table}
+Estimate_table%>%set_caption("Number of studies (estimates) for each type of protection used in this meta-analysis.")
+```
+
+```{r funnel-plot-1, fig.height = 8, fig.width = 6.5, fig.cap = "Funnel plot of estimates of immunity by time since immune conferring event. Ten weeks or less: maximum time of ten weeks since immune conferring event, more than ten weeks: minimum of ten weeks since immune conferring event, Other: window includes ten weeks. Vertical dashed lines indicate weighted group means on log-scale. Diagonal dashed lines indicate mean $\\pm$ 1.96*standard error.", echo = FALSE, warning = FALSE}
+Meta_Regression_Data[MIN_TIME<=10,Initial:= "Other",]
+Meta_Regression_Data[MAX_TIME<=10,Initial:= "Ten weeks or less",]
+
+Meta_Regression_Data[MIN_TIME>10,Initial:= "More than ten weeks",]
+Meta_Regression_Data[,Initial:=factor(Initial, levels = c("Ten weeks or less", "More than ten weeks", "Other")),]
+Meta_Regression_Data[TYPE == "S",TYPE2:="Infection~(E[S])",]
+Meta_Regression_Data[TYPE == "D",TYPE2:="Symptomatic~Disease~(E[D])",]
+Meta_Regression_Data[TYPE == "M",TYPE2:="Severe~Disease~(E[M])",]
+Meta_Regression_Data[,TYPE2:=factor(TYPE2, 
+                                levels = c("Infection~(E[S])", 
+                                           "Symptomatic~Disease~(E[D])", 
+                                           "Severe~Disease~(E[M])")),]
+
+
+Meta_Regression_Data[TYPE %in% c("S", "D", "M") & IMM %in% c("B", "H", "HB", "V", "I")][!is.na(LWEIGHT) & is.finite(LWEIGHT) & !is.na(LHR) & is.finite(LHR),sum(LHR * LWEIGHT)/sum(LWEIGHT),.(Initial, TYPE2, STRAIN)]->Means
+
+dat_text = data.table(
+    text = LETTERS[seq(9)],
+    TYPE2 = factor(rep(c("Infection~(E[S])",
+                  "Symptomatic~Disease~(E[D])",
+                  "Severe~Disease~(E[M])"),3),
+                  levels = c("Infection~(E[S])",
+                             "Symptomatic~Disease~(E[D])",
+                             "Severe~Disease~(E[M])")),
+    Initial = factor(
+      rep(c("Ten weeks or less", "More than ten weeks", "Other"), each = 3),
+                    levels = c("Ten weeks or less", "More than ten weeks", "Other"))
+)
+
+ggplot(
+  Meta_Regression_Data[
+    TYPE %in% c("S", "D", "M") &
+      IMM %in% c("B", "H", "HB", "V", "I")], 
+  aes(
+    x = pmax(LHR, log(1 - 0.999)),
+    y = pmax(-1, (LHR - LHR_HI)/(qnorm(.975))),
+    col = STRAIN
+    )
+  ) + 
+  geom_point(alpha = 0.3) + 
+  facet_grid(Initial~TYPE2,
+             labeller = labeller(
+               TYPE2 = label_parsed
+             )) + 
+  geom_segment(aes(x = V1, xend = V1), 
+               y = 0, yend = -1,
+               linetype = 2, 
+               data = Means) +
+  geom_segment(aes(x = V1, xend = V1 - 1 * qnorm(.975)), 
+               y = 0, yend = -1,
+               linetype = 2, 
+               data = Means) +
+  geom_segment(aes(x = V1, xend = V1 + 1 * qnorm(.975)), 
+               y = 0, yend = -1, linetype = 2, 
+               data = Means) +
+  scale_x_continuous("Reduction in Risk", 
+                     breaks = log(1 - c(0.999, 0.99, 0.9, 0, -9)), 
+                     labels = c("<0.001", "0.01", "0.1", "1", "10"), 
+                     limits = c(log(0.001), log(10)))+ 
+  scale_y_continuous("Precision (standard error of log-hazard)", 
+                     breaks = seq(-1, 0, by = 0.25), 
+                     labels = c(">1", 0.75, 0.5, 0.25, 0), 
+                     limits = c(-1, 0)) +
+  geom_label(aes(label = text),
+             x = -6.5, y = -0.01, size = 4, 
+             color = "black", fill = "white", 
+             data = dat_text) +
+  theme_minimal() + 
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.title = element_text(size = 10),
+        axis.text = element_text(size = 8, face = "plain"),
+        strip.text = element_text(size = 10, face = "bold"),
+        legend.text = element_text(size = 10, face = "plain"),
+        legend.position = "bottom",
+        panel.spacing = unit(0.2, "in"))
+```
+
+
+```{r funnel-plot-2, fig.height = 8, fig.width = 6.5, fig.cap = "Funnel plot of estimates of vaccine-induced and hybrid immunity. Vertical dashed lines indicate weighted group means on log-scale. Diagonal dashed lines indicate mean $\\pm$ 1.96*standard error.", echo = FALSE, warning = FALSE}
+Meta_Regression_Data[IMM == "V", IMM2:= "Primary Vaccination"]
+Meta_Regression_Data[IMM == "B", IMM2:= "Booster Vaccination"]
+Meta_Regression_Data[IMM %in% c("I", "H", "HB"), IMM2:= "Infection and Hybrid"]
+Meta_Regression_Data[, IMM2:= factor(IMM2,
+      levels = c("Primary Vaccination", 
+                 "Booster Vaccination", 
+                 "Infection and Hybrid"))]
+dat_text = data.table(
+    text = LETTERS[seq(9)],
+    TYPE2 = factor(rep(c("Infection~(E[S])",
+                  "Symptomatic~Disease~(E[D])",
+                  "Severe~Disease~(E[M])"),3),
+                  levels = c("Infection~(E[S])",
+                             "Symptomatic~Disease~(E[D])",
+                             "Severe~Disease~(E[M])")),
+    IMM2 = factor(
+      rep(c("Primary Vaccination", 
+            "Booster Vaccination", 
+            "Infection and Hybrid"), each = 3),
+      levels = c("Primary Vaccination", 
+                 "Booster Vaccination", 
+                 "Infection and Hybrid"))
+)
+
+Meta_Regression_Data[TYPE %in% c("S", "D", "M") & 
+                       IMM %in% c("B", "H", "HB", "V", "I")
+                     ][!is.na(LWEIGHT) & is.finite(LWEIGHT) & 
+                           !is.na(LHR) & is.finite(LHR),
+                       sum(LHR * LWEIGHT)/sum(LWEIGHT),
+                       .(IMM2, TYPE2, STRAIN)]->Means
+
+ggplot(
+  Meta_Regression_Data[
+    TYPE %in% c("S", "D", "M") &
+      IMM %in% c("B", "H", "HB", "V", "I")], 
+  aes(
+    x = pmax(LHR, log(1 - 0.999)),
+    y = pmax(-1, (LHR - LHR_HI)/(qnorm(.975))),
+    col = STRAIN
+    )
+  ) + 
+  geom_point(alpha = 0.3) + 
+  facet_grid(IMM2~TYPE2,
+             labeller = labeller(
+               TYPE2 = label_parsed
+             )) + 
+  geom_segment(aes(x = V1, xend = V1), 
+               y = 0, yend = -1, linetype = 2, 
+               data = Means) +
+  geom_segment(aes(x = V1, xend = V1 - 1 * qnorm(.975)), 
+               y = 0, yend = -1, linetype = 2, 
+               data = Means) +
+  geom_segment(aes(x = V1, xend = V1 + 1 * qnorm(.975)), 
+               y = 0, yend = -1, linetype = 2, 
+               data = Means) +
+  scale_x_continuous("Reduction in Risk (%)", 
+                     breaks = log(1 - c(0.999, 0.99, 0.9, 0, -9)), 
+                     labels = c(">99.9", "99", "90", "0", "-900"), 
+                     limits = c(log(0.001), log(10)))+ 
+  scale_y_continuous("Precision (standard error of log-hazard)", 
+                     breaks = seq(-1, 0, by = 0.25), 
+                     labels = c(">1", 0.75, 0.5, 0.25, 0), 
+                     limits = c(-1, 0)) +
+  geom_label(aes(label = text),
+             x = -6.5, y = -0.01, size = 4, 
+             color = "black", fill = "white", 
+             data = dat_text) +
+  theme_minimal() + 
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.title = element_text(size = 10),
+        axis.text = element_text(size = 8, face = "plain"),
+        strip.text = element_text(size = 10, face = "bold"),
+        legend.text = element_text(size = 10, face = "plain"),
+        legend.position = "bottom",
+        panel.spacing = unit(0.2, "in"))
+```
+
+
+
+\newpage
+
+```{r Define-Eggers-Test, echo = FALSE}
+eggers_test = function(.DT){
+  lm(Scaled_Effect~Precision, data = .DT)%>%summary()->.s
+  .x = .s$coefficients["(Intercept)",]
+  data.table(
+    N = nrow(.DT),
+    Intercept = .x[1],
+    SE = .x[2],
+    t = .x[3],
+    p = .x[4]
+  )
+}
+```
+
+```{r Perform-Eggers-Test, echo = FALSE}
+Meta_Regression_Data[,Precision:= qnorm(.975)/(LHR_HI - LHR)]
+Meta_Regression_Data[,Scaled_Effect:= LHR * Precision]
+setkey(Meta_Regression_Data, TYPE2, STRAIN, IMM2, Initial)
+Eggers_Data = Meta_Regression_Data[
+  !is.na(Precision) & 
+    is.finite(Precision) & 
+    !is.na(TYPE2) & 
+    !is.na(IMM2),
+  eggers_test(.SD),
+  .(TYPE2, STRAIN, IMM2, Initial)
+  ][N>=10]
+```
+
+```{r Eggers-Table, echo = FALSE}
+Eggers_Data[TYPE2 == "Infection~(E[S])",TYPE3:="Infection",]
+Eggers_Data[TYPE2 == "Symptomatic~Disease~(E[D])",TYPE3:="Symptomatic Disease",]
+Eggers_Data[TYPE2 == "Severe~Disease~(E[M])",TYPE3:="Severe Disease",]
+Eggers_Data[,.(Intercept = sprintf("%.3g", Intercept),
+               Confidence_Interval = sprintf("(%.3g, %.3g)", 
+                                             Intercept - qnorm(0.975) * SE, 
+                                             Intercept + qnorm(0.975) * SE),
+               t = sprintf("%.3g", t),
+               p = ifelse(p<0.0001, "<0.0001", sprintf("%.3g", p))),
+            .(TYPE3, STRAIN, IMM2, Initial)]%>%
+  flextable()%>%
+  set_header_labels(
+    TYPE3 = "Outcome",
+    STRAIN = "Strain",
+    IMM2 = "Type of Immunity",
+    Initial = "Timeframe",
+    Intercept = "Intercept",
+    Confidence_Interval = "Confidence Interval",
+    t = "t-value",
+    p = "p-value"
+  )%>%merge_v(j = c(1,2,3))%>%
+  font(fontname = "Times New Roman", part = "all")%>%
+  fontsize(size = 8)%>%
+  fontsize(size = 10, part = "header")%>%
+  bold(part = "header")%>%
+  autofit()%>%
+  hline(i = c(3, 6, 8, 11, 12, 14, 17, 20, 22, 25, 27, 30, 33, 36, 38, 39))%>%
+  fix_border_issues()%>%
+  bg(j = 8, i=~(p<.05), bg = "grey")%>%
+  padding(padding.top = PADDING, padding.bottom = PADDING)%>%fit_to_width(6.5)%>%
+  set_caption("Test of funnel plot assymmetry using Egger's regression test. Low Ten weeks or less: maximum time of ten weeks since immune conferring event, more than ten weeks: minimum of ten weeks since immune conferring event, Other: window includes ten weeks.")
+```
+
+\newpage
+```{r Strain-ES, echo = FALSE}
+model_comparison_table_strain(etable_strain[TYPE == "S"])%>%set_caption(as_paragraph("Comparison of Model 1 estimates of E", as_sub("S"), " using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Strain-ED, echo = FALSE}
+model_comparison_table_strain(etable_strain[TYPE == "D"])%>%set_caption(as_paragraph("Comparison of Model 1 estimates of E", as_sub("D"), " using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Strain-EM, echo = FALSE}
+model_comparison_table_strain(etable_strain[TYPE == "M"])%>%set_caption(as_paragraph("Comparison of Model 1 estimates of E", as_sub("M"), " using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Booster-ES-POM, echo = FALSE}
+model_comparison_table_booster(etable_booster[TYPE == "S" & STRAIN == "Pre-Omicron"])%>%set_caption(as_paragraph("Comparison of Model 2 estimates of E", as_sub("S"), " against pre-Omicron strains using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Booster-ED-POM, echo = FALSE}
+model_comparison_table_booster(etable_booster[TYPE == "D" & STRAIN == "Pre-Omicron"])%>%set_caption(as_paragraph("Comparison of Model 2 estimates of E", as_sub("D"), " against pre-Omicron strains using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Booster-EM-POM, echo = FALSE}
+model_comparison_table_booster(etable_booster[TYPE == "M" & STRAIN == "Pre-Omicron"])%>%set_caption(as_paragraph("Comparison of Model 2 estimates of E", as_sub("M"), " against pre-Omicron strains using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Booster-ES-OM, echo = FALSE}
+model_comparison_table_booster(etable_booster[TYPE == "S" & STRAIN == "Omicron"])%>%set_caption(as_paragraph("Comparison of Model 2 estimates of E", as_sub("S"), " against Omicron strains using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Booster-ED-OM, echo = FALSE}
+model_comparison_table_booster(etable_booster[TYPE == "D" & STRAIN == "Omicron"])%>%set_caption(as_paragraph("Comparison of Model 2 estimates of E", as_sub("D"), " against Omicron strains using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Booster-EM-OM, echo = FALSE}
+model_comparison_table_booster(etable_booster[TYPE == "M" & STRAIN == "Omicron"])%>%set_caption(as_paragraph("Comparison of Model 2 estimates of E", as_sub("M"), " against Omicron strains using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Infection-ES-POM, echo = FALSE}
+model_comparison_table_infected(etable_infection[!is.na(BIC) & TYPE == "S" & STRAIN == "Pre-Omicron"])%>%set_caption(as_paragraph("Comparison of Model 3 estimates of E", as_sub("S")," against pre-Omicron strains using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Infection-ED-POM, echo = FALSE}
+model_comparison_table_infected(etable_infection[!is.na(BIC) & TYPE == "D" & STRAIN == "Pre-Omicron"], n = 3)%>%set_caption(as_paragraph("Comparison of Model 3 estimates of E", as_sub("D")," against pre-Omicron strains using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Infection-ES-OM, echo = FALSE}
+model_comparison_table_infected(etable_infection[!is.na(BIC) & TYPE == "S" & STRAIN == "Omicron"])%>%set_caption(as_paragraph("Comparison of Model 3 estimates of E", as_sub("S")," against Omicron using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Infection-ED-OM, echo = FALSE}
+model_comparison_table_infected(etable_infection[!is.na(BIC) & TYPE == "D" & STRAIN == "Omicron"])%>%set_caption(as_paragraph("Comparison of Model 3 estimates of E", as_sub("D")," against Omicron using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Infection-m-ES-POM, echo = FALSE}
+model_comparison_table_infected(etable_infection_mod[!is.na(BIC) & TYPE == "S" & (is.na(PSTRAIN) | PSTRAIN == "Pre-Omicron")])%>%set_caption(as_paragraph("Comparison of Model 4 estimates of E", as_sub("S") ," following prior infection with a pre-Omicron strain against Omicron using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+\newpage
+
+```{r Infection-m-ED-POM, echo = FALSE}
+model_comparison_table_infected(etable_infection_mod[!is.na(BIC) & TYPE == "D" & (is.na(PSTRAIN) | PSTRAIN == "Pre-Omicron")], m=7)%>%set_caption(as_paragraph("Comparison of Model 4 estimates of E", as_sub("D"), " following prior infection with a pre-Omicron strain against Omicron using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Infection-m-ES-OM, echo = FALSE}
+model_comparison_table_infected(etable_infection_mod[!is.na(BIC) & TYPE == "S" & (is.na(PSTRAIN) | PSTRAIN == "Omicron")])%>%set_caption(as_paragraph("Comparison of Model 4 estimates of E", as_sub("S"), " following prior infection with Omicron subsequent Omicron reinfection using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Infection-m-ED-OM, echo = FALSE}
+model_comparison_table_infected(etable_infection_mod[!is.na(BIC) & TYPE == "D" & (is.na(PSTRAIN) | PSTRAIN == "Omicron")], m = 7)%>%set_caption(as_paragraph("Comparison of Model 4 estimates of E", as_sub("D"), " following prior infection with Omicron subsequent Omicron disease using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r hboosted-ES-OM, echo = FALSE}
+model_comparison_table_booster(etable_hboosted[TYPE == "S" & STRAIN == "Omicron"])%>%set_caption(as_paragraph("Comparison of Model 5 estimates of E", as_sub("S"), "against Omicron using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+\newpage
+
+```{r hboosted-ED-OM, echo = FALSE}
+model_comparison_table_booster(etable_hboosted[TYPE == "D" & STRAIN == "Omicron"])%>%set_caption(as_paragraph("Comparison of Model 5 estimates of E",as_sub("D"), " against Omicron using different random effects. Grayed row shows main analysis. BIC = Bayesian information criterion"))
+```
+
+\newpage
+
+```{r Infection-Table-mod}
+rtable_infection_mod_bestfit[,TYPE:=factor(TYPE, levels = c("S", "D")),]
+setkey(rtable_infection_mod_bestfit, TYPE, PSTRAIN, IMMUNITY)
+caption.pstrain = "Unadjusted estimates of immune efficacy from by immune type at two and thirty weeks since most recent dose and the change over that time frame with 95% confidence intervals. Analysis was stratified by the variant of the prior infection. Significance of the impact of strain replacement and of time since vaccination was evaluated with a two-sided t-test. Listed p-values indicate the significance of the strain replacement. Significance of the change over time is indicated by *(p<.05), **(p<.01), and ***(p<.001). Natural Imm. and N.I. refer to infection-induced immunity, Pri. refers to primary vaccine-induced immunity, Hyb. refers to hybrid immunity."
+
+
+flextable(rtable_infection_mod_bestfit[version == "linear" & STUDY_TYPE_SIMPLE == "All"], col_keys = c("OUTCOME", "PSTRAIN", "IMMUNITY", "print.value.2", "print.value.16", "print.value.sl"))%>%merge_v(j=c(13,15))%>%set_header_labels(values = c("Outcome", "Prior Infection", "Immunity", "Initial (Week 2)", "Waned (Week 26)", "Change"))%>%autofit()%>%hline(i = c(1,5, 9, 10, 14))%>%set_caption(caption.pstrain)%>%fix_border_issues()%>%fit_to_width(7.5)
+```
+
+```{r Infection-Table-mod-Log}
+rtable_infection_mod_bestfit[is.na(PSTRAIN),PSTRAIN := "",
+                      ]
+
+rtable_infection_mod_bestfit[STUDY_TYPE_SIMPLE == "All",
+                        .(OUTCOME, PSTRAIN, IMMUNITY, version, print.value.2, print.value.26)
+                      ]%>%reshape( 
+  direction = "wide", 
+  timevar = "version", 
+  idvar = c("OUTCOME", "PSTRAIN", "IMMUNITY")
+  )%>%
+  flextable(col_keys = c("OUTCOME", "PSTRAIN", "IMMUNITY", "print.value.2.linear", "print.value.2.log", "print.value.26.linear", "print.value.26.log"))%>%merge_v(j=c(1,2))%>%set_header_labels(values = c("Outcome", "Prior Infection", "Immunity", "Linear (Main)", "Logarithmic", "Linear (Main)", "Logarithmic"))%>%autofit()%>%hline(i = c(1,5, 9, 10, 14))%>%set_caption(caption.pstrain)%>%
+  add_header_row(values = c("", "Week 2", "Week 26"), colwidths = c(3,2,2))%>%
+  align(align = "center", part = "header", i = 1)%>%fix_border_issues()%>%autofit()%>%fit_to_width(7.5)
+```
+
+```{r Hybrid-Boosted-Table}
+
+caption.hboosted = "Unadjusted estimates of immune efficacy by prior infection at two and thirty weeks since most mRNA booster dose and the change over that time frame with 95% confidence intervals. Primary = Primary series only. Analysis was stratified by infecting strain and clinical outcome. Significance of the impact of strain replacement and of time since vaccination was evaluated with a two-sided t-test. Listed p-values indicate the significance of the strain replacement. Significance of the change over time is indicated by *(p<.05), **(p<.01), and ***(p<.001)."
+flextable(rtable_infection_hboosted_bestfit[version == "linear" & STUDY_TYPE_SIMPLE == "All"], col_keys = c("OUTCOME", "DOSE", "print.value.2", "print.value.16", "print.value.sl"))%>%merge_v(j=c(14))%>%set_header_labels(values = c("Outcome", "Dose", "Initial (Week 2)", "Waned (Week 16)", "Change"))%>%autofit()%>%hline(i = c(3))%>%
+  set_caption(caption = caption.hboosted)%>%fix_border_issues()%>%fit_to_width(7.5)
+```
