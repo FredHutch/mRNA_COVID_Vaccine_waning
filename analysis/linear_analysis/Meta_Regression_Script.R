@@ -15,9 +15,9 @@ args = commandArgs(trailingOnly=TRUE, asValues = TRUE,
                                 AGE_ADJUSTMENT = FALSE,
                                 BY_STUDY_TYPE = FALSE))
 
-# args$input_data = "X:\\fast\\schiffer_j\\COVIDmodeling\\data\\Waning_Table_01_18_25.rds"
-# args$AGE_ADJUSTMENT = TRUE
-# args$BY_STUDY_TYPE = TRUE
+args$input_data = "X:\\fast\\schiffer_j\\COVIDmodeling\\data\\Waning_Table_02_21_25.rds"
+args$AGE_ADJUSTMENT = TRUE
+args$BY_STUDY_TYPE = FALSE
 
 if(args$BY_STUDY_TYPE){
 output_folder = ifelse(

@@ -167,9 +167,9 @@ fit_rma_strain = function(X, Method, multilevel = F){
   
   prediction.grid_a = model.matrix(~MIN_TIME * STRAIN, template_a)[,-1]
   prediction.grid_b = cbind(
-    MIN_TIME = c(-Waning_DROP, -Waning_DROP),
+    MIN_TIME = c(-WANING_DROP, -WANING_DROP),
     `STRAINOmicron` = c(0,0),
-    `MIN_TIME:STRAINOmicron` = c(-Waning_DROP, 0)
+    `MIN_TIME:STRAINOmicron` = c(-WANING_DROP, 0)
   )
   
   
@@ -375,9 +375,9 @@ fit_rma_booster = function(X, Method, multilevel = F){
   
   prediction.grid_a = model.matrix(~MIN_TIME * Boosted, template_a)[,-1]
   prediction.grid_b = cbind(
-    MIN_TIME = c(-Waning_DROP, -Waning_DROP),
+    MIN_TIME = c(-WANING_DROP, -WANING_DROP),
     `BoostedTRUE` = c(0,0),
-    `MIN_TIME:BoostedTRUE` = c(0, -Waning_DROP)
+    `MIN_TIME:BoostedTRUE` = c(0, -WANING_DROP)
   )
   
   
@@ -585,11 +585,11 @@ fit_rma_inf = function(X, Method, multilevel = F){
   
   prediction.grid_a = model.matrix(~MIN_TIME * IMM, template_a)[,-1]
   prediction.grid_b = cbind(
-    MIN_TIME = c(-Waning_DROP, -Waning_DROP, -Waning_DROP),
+    MIN_TIME = c(-WANING_DROP, -WANING_DROP, -WANING_DROP),
     `IMMH` = c(0,0,0),
     `IMMI` = c(0,0,0),
-    `MIN_TIME:IMMH` = c(0, 0, -Waning_DROP),
-    `MIN_TIME:IMMI` = c(0, -Waning_DROP, 0)
+    `MIN_TIME:IMMH` = c(0, 0, -WANING_DROP),
+    `MIN_TIME:IMMI` = c(0, -WANING_DROP, 0)
   )
   
   
@@ -802,9 +802,9 @@ fit_rma_inf_alt = function(X, Method, multilevel = F){
   
   prediction.grid_a = model.matrix(~MIN_TIME * IMM, template_a)[,-1]
   prediction.grid_b = cbind(
-    MIN_TIME = c(-Waning_DROP, -Waning_DROP),
+    MIN_TIME = c(-WANING_DROP, -WANING_DROP),
     `IMMI` = c(0,0),
-    `MIN_TIME:IMMI` = c(0, -Waning_DROP)
+    `MIN_TIME:IMMI` = c(0, -WANING_DROP)
   )
   
   
@@ -1012,15 +1012,15 @@ fit_rma_pstrain = function(X, Method, multilevel = F){
   
   prediction.grid_a = model.matrix(~MIN_TIME * IMMP, template_a)[,-1]
   prediction.grid_b = cbind(
-    MIN_TIME = c(-Waning_DROP, -Waning_DROP, -Waning_DROP, -Waning_DROP, -Waning_DROP),
+    MIN_TIME = c(-WANING_DROP, -WANING_DROP, -WANING_DROP, -WANING_DROP, -WANING_DROP),
     `IMMPV` = c(0,0,0,0,0),
     `IMMPIPre-Omicron` = c(0,0,0,0,0),
     `IMMPIPost-Omicron` = c(0,0,0,0,0),
     `IMMPHPre-Omicron` = c(0,0,0,0,0),
-    `MIN_TIME:IMMPV` = c(0,-Waning_DROP,0,0,0),
-    `MIN_TIME:IMMPIPre-Omicron` = c(0,0,-Waning_DROP,0,0),
-    `MIN_TIME:IMMPIPost-Omicron` = c(0,0,0,-Waning_DROP,0),
-    `MIN_TIME:IMMPHPre-Omicron` = c(0,0,0,0,-Waning_DROP)
+    `MIN_TIME:IMMPV` = c(0,-WANING_DROP,0,0,0),
+    `MIN_TIME:IMMPIPre-Omicron` = c(0,0,-WANING_DROP,0,0),
+    `MIN_TIME:IMMPIPost-Omicron` = c(0,0,0,-WANING_DROP,0),
+    `MIN_TIME:IMMPHPre-Omicron` = c(0,0,0,0,-WANING_DROP)
   )
   
   
@@ -1245,9 +1245,9 @@ fit_rma_hboosted = function(X, Method, multilevel = F){
   
   prediction.grid_a = model.matrix(~MIN_TIME * Infected, template_a)[,-1]
   prediction.grid_b = cbind(
-    MIN_TIME = c(-Waning_DROP2, -Waning_DROP2),
+    MIN_TIME = c(-WANING_DROP2, -WANING_DROP2),
     `InfectedTRUE` = c(0,0),
-    `MIN_TIME:InfectedTRUE` = c(0, -Waning_DROP2)
+    `MIN_TIME:InfectedTRUE` = c(0, -WANING_DROP2)
   )
   
   
